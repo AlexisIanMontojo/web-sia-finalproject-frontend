@@ -1,0 +1,68 @@
+.verify-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #f4f7f5;
+  font-family: Arial, sans-serif;
+}
+
+.verify-card {
+  width: 100%;
+  max-width: 440px;
+  padding: 36px 28px;
+  text-align: center;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+}
+
+.verify-card h1 {
+  margin: 0 0 24px;
+  color: #174d38;
+  font-size: 26px;
+}
+
+.verify-card p {
+  color: #4b5563;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.verify-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  background: #e5e7eb;
+  font-size: 30px;
+}
+
+.verify-icon.success {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.verify-icon.error {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.verify-link {
+  display: inline-block;
+  margin-top: 24px;
+  padding: 12px 24px;
+  color: #ffffff;
+  background: #174d38;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.verify-link:hover {
+  background: #103b2a;
+}
