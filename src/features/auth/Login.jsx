@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import logo from '../../assets/images/logo.jpg';
-import { login } from './authService';
+import { useAuth } from './AuthContext';
 import './Auth.css';
 
 export default function Login() {
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const [form, setForm] = useState({
     email: '',
@@ -28,34 +29,15 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const response = await login({
+      const user = await login({
         email: form.email.trim(),
         password: form.password,
       });
 
-      const data = response.data;
-
-      if (data.success === false) {
-        setError(data.message || 'Invalid email or password.');
-        return;
-      }
-
-      const accessToken = data.access_token || data.token;
-
-      if (accessToken) {
-        localStorage.setItem('access_token', accessToken);
-      }
-
-      if (data.refresh_token) {
-        localStorage.setItem('refresh_token', data.refresh_token);
-      }
-
-      if (data.user) {
-        localStorage.setItem('user', JSON.stringify(data.user));
-      }
-
-      // Adjust this destination to match your configured application routes.
-      navigate(data.user?.role === 'admin' ? '/admin' : '/rooms');
+      // Redirect by the role returned from the database, never by email.
+      navigate(user.role === 'admin' ? '/admin/dashboard' : '/rooms', {
+        replace: true,
+      });
     } catch (err) {
       setError(
         err.response?.data?.message ||
