@@ -1,40 +1,48 @@
 import { useEffect, useMemo, useState } from 'react';
 import { customersApi } from '../adminService';
 import { toast, showError } from '../../../lib/alerts';
+import { useCachedFetch } from '../../../lib/cache';
+import { useAuth } from '../../auth/AuthContext';
+import { MANAGER_ROLES } from '../../../lib/roles';
 import Modal from '../components/Modal';
 import '../../../layouts/Admin.css';
 
+const fetchCustomers = async () => {
+  const { data } = await customersApi.list();
+  return Array.isArray(data?.data) ? data.data : [];
+};
+
 export default function CustomersPage() {
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const canEdit = MANAGER_ROLES.includes(user?.role);
+
+  const customerState = useCachedFetch('admin:customers', fetchCustomers);
+  const rows = customerState.data ?? [];
+
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ username: '', is_active: true });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const { data } = await customersApi.list();
-      setRows(data.data);
-    } catch (err) {
-      showError('Could not load customers', err.response?.data?.message || 'Check your connection and try again.');
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (customerState.error) {
+      showError('Could not load customers', customerState.error.response?.data?.message || 'Try again.');
     }
-  }
-
-  useEffect(() => { load(); }, []);
+  }, [customerState.error]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return rows.filter((r) =>
-      !q || r.username.toLowerCase().includes(q) || r.email.toLowerCase().includes(q)
+    return rows.filter(
+      (r) =>
+        !q ||
+        r.username.toLowerCase().includes(q) ||
+        r.email.toLowerCase().includes(q)
     );
   }, [rows, search]);
 
   function openEdit(row) {
+    if (!canEdit) return;
     setForm({ username: row.username, is_active: row.is_active });
     setErrors({});
     setEditing(row);
@@ -51,24 +59,37 @@ export default function CustomersPage() {
     setErrors({});
 
     try {
-      await customersApi.update(editing.id, form);
+      const { data } = await customersApi.update(editing.id, form);
+      const saved = data.data;
+
+      customerState.setData((prev) =>
+        (prev ?? []).map((r) => (r.id === saved.id ? saved : r))
+      );
+
       toast('success', 'Customer updated');
       setEditing(null);
-      load();
     } catch (err) {
-      if (err.response?.status === 422) setErrors(err.response.data.errors || {});
-      else showError('Save failed', err.response?.data?.message || 'Please try again.');
+      if (err.response?.status === 422) {
+        setErrors({ form: err.response.data.errors || [err.response.data.message] });
+      } else {
+        showError('Save failed', err.response?.data?.message || 'Please try again.');
+      }
     } finally {
       setSaving(false);
     }
   }
+
+  const loading = customerState.loading;
 
   return (
     <section>
       <div className="admin-page-header">
         <div>
           <h1 className="admin-page-title">Customers</h1>
-          <p className="admin-page-subtitle">{rows.length} registered customer{rows.length === 1 ? '' : 's'}</p>
+          <p className="admin-page-subtitle">
+            {rows.length} registered customer{rows.length === 1 ? '' : 's'}
+            {!canEdit && ' · view only'}
+          </p>
         </div>
       </div>
 
@@ -95,13 +116,15 @@ export default function CustomersPage() {
                 <th>Email verified</th>
                 <th>Joined</th>
                 <th>Account</th>
-                <th className="text-right">Actions</th>
+                {canEdit && <th className="text-right">Actions</th>}
               </tr>
             </thead>
             <tbody>
               {filtered.map((row) => (
                 <tr key={row.id}>
-                  <td><strong>{row.username}</strong></td>
+                  <td>
+                    <strong>{row.username}</strong>
+                  </td>
                   <td>{row.email}</td>
                   <td>
                     <span className={`badge ${row.email_verified ? 'badge-green' : 'badge-amber'}`}>
@@ -114,9 +137,13 @@ export default function CustomersPage() {
                       {row.is_active ? 'Active' : 'Disabled'}
                     </span>
                   </td>
-                  <td className="text-right">
-                    <button className="btn btn-ghost" onClick={() => openEdit(row)}>Edit</button>
-                  </td>
+                  {canEdit && (
+                    <td className="text-right">
+                      <button className="btn btn-ghost" onClick={() => openEdit(row)}>
+                        Edit
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -124,9 +151,17 @@ export default function CustomersPage() {
         )}
       </div>
 
-      {editing && (
+      {editing && canEdit && (
         <Modal title="Edit Customer" onClose={() => !saving && setEditing(null)}>
           <form onSubmit={handleSave}>
+            {errors.form && (
+              <div className="auth-message auth-error" role="alert">
+                {(Array.isArray(errors.form) ? errors.form : [errors.form]).map((m) => (
+                  <div key={m}>{m}</div>
+                ))}
+              </div>
+            )}
+
             <label className="field">
               <span>Email</span>
               <input className="input" value={editing.email} disabled />
@@ -134,18 +169,37 @@ export default function CustomersPage() {
 
             <label className="field">
               <span>Username</span>
-              <input name="username" className="input" value={form.username} onChange={handleChange} required />
-              {errors.username && <small className="field-error">{errors.username}</small>}
+              <input
+                name="username"
+                className="input"
+                value={form.username}
+                onChange={handleChange}
+                required
+              />
             </label>
 
             <label className="checkbox-row">
-              <input name="is_active" type="checkbox" checked={form.is_active} onChange={handleChange} />
+              <input
+                name="is_active"
+                type="checkbox"
+                checked={form.is_active}
+                onChange={handleChange}
+              />
               <span>Account active (disabled customers cannot log in)</span>
             </label>
 
             <div className="modal-footer">
-              <button type="button" className="btn btn-ghost" onClick={() => setEditing(null)} disabled={saving}>Cancel</button>
-              <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setEditing(null)}
+                disabled={saving}
+              >
+                Cancel
+              </button>
+              <button type="submit" className="btn btn-primary" disabled={saving}>
+                {saving ? 'Saving…' : 'Save'}
+              </button>
             </div>
           </form>
         </Modal>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import logo from '../../assets/images/logo.jpg';
 import { useAuth } from './AuthContext';
 import './Auth.css';
@@ -7,6 +7,7 @@ import './Auth.css';
 export default function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
+  const location = useLocation();
 
   const [form, setForm] = useState({
     email: '',
@@ -34,8 +35,10 @@ export default function Login() {
         password: form.password,
       });
 
-      // Redirect by the role returned from the database, never by email.
-      navigate(user.role === 'admin' ? '/admin/dashboard' : '/rooms', {
+      const from = location.state?.from;
+      const back = from ? `${from.pathname}${from.search || ''}` : null;
+
+      navigate(user.role === 'admin' ? '/admin/dashboard' : back || '/rooms', {
         replace: true,
       });
     } catch (err) {

@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { roomsApi, categoriesApi } from '../adminService';
 import { toast, showError, confirmDelete } from '../../../lib/alerts';
+import { useCachedFetch } from '../../../lib/cache';
 import Modal from '../components/Modal';
 import '../../../layouts/Admin.css';
 
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
 const STATUSES = [
   { value: 'available', label: 'Available', badge: 'badge-green' },
-  { value: 'occupied', label: 'Occupied', badge: 'badge-amber' },
   { value: 'maintenance', label: 'Maintenance', badge: 'badge-red' },
   { value: 'out_of_service', label: 'Out of service', badge: 'badge-gray' },
 ];
@@ -22,10 +24,29 @@ const EMPTY = {
   is_active: true,
 };
 
+// Defined once, outside the component, so the cache hook keeps a stable reference.
+const fetchRooms = async () => {
+  const { data } = await roomsApi.list();
+  return Array.isArray(data?.data) ? data.data : [];
+};
+
+const fetchCategories = async () => {
+  const { data } = await categoriesApi.list();
+  return Array.isArray(data?.data) ? data.data : [];
+};
+
+function imageSrc(path) {
+  if (!path) return null;
+  return path.startsWith('http') ? path : `${API_BASE}${path}`;
+}
+
 export default function RoomsPage() {
-  const [rows, setRows] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const roomState = useCachedFetch('admin:rooms', fetchRooms);
+  const categoryState = useCachedFetch('admin:categories', fetchCategories);
+
+  const rows = roomState.data ?? [];
+  const categories = categoryState.data ?? [];
+
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [modal, setModal] = useState(null);
@@ -33,29 +54,26 @@ export default function RoomsPage() {
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const [roomRes, catRes] = await Promise.all([roomsApi.list(), categoriesApi.list()]);
-      setRows(Array.isArray(roomRes.data?.data) ? roomRes.data.data : []);
-      setCategories(Array.isArray(catRes.data?.data) ? catRes.data.data : []);
-    } catch (err) {
-      showError(
-        'Could not load rooms',
-        err.response?.data?.message || 'Check your connection and try again.'
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [imageFile, setImageFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const fileInput = useRef(null);
 
   useEffect(() => {
-    load();
-  }, []);
+    if (roomState.error) {
+      showError('Could not load rooms', roomState.error.response?.data?.message || 'Try again.');
+    }
+  }, [roomState.error]);
+
+  // Free the preview URL when it changes.
+  useEffect(() => {
+    return () => {
+      if (preview && preview.startsWith('blob:')) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return (rows ?? []).filter(
+    return rows.filter(
       (r) =>
         (!q ||
           (r.room_number || '').toLowerCase().includes(q) ||
@@ -68,9 +86,16 @@ export default function RoomsPage() {
     return STATUSES.find((s) => s.value === value) || STATUSES[0];
   }
 
+  function resetImage() {
+    setImageFile(null);
+    setPreview(null);
+    if (fileInput.current) fileInput.current.value = '';
+  }
+
   function openCreate() {
     setForm({ ...EMPTY, category_id: categories[0]?.id ?? '' });
     setErrors({});
+    resetImage();
     setModal({ mode: 'create' });
   }
 
@@ -86,6 +111,8 @@ export default function RoomsPage() {
       is_active: row.is_active,
     });
     setErrors({});
+    resetImage();
+    setPreview(row.image_url ? imageSrc(row.image_url) : null);
     setModal({ mode: 'edit', id: row.id });
   }
 
@@ -94,31 +121,66 @@ export default function RoomsPage() {
     setForm((f) => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
   }
 
+  function handleFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      showError('Unsupported file', 'Choose a JPG, PNG, or WebP image.');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      showError('File too large', 'The image must be 3 MB or smaller.');
+      e.target.value = '';
+      return;
+    }
+
+    setImageFile(file);
+    setPreview(URL.createObjectURL(file));
+  }
+
   async function handleSave(e) {
     e.preventDefault();
     setSaving(true);
     setErrors({});
 
-    const payload = {
-      ...form,
-      category_id: Number(form.category_id),
-      capacity: Number(form.capacity),
-      floor_number: form.floor_number === '' ? null : Number(form.floor_number),
-    };
-
     try {
-      if (modal.mode === 'create') {
-        await roomsApi.create(payload);
-        toast('success', 'Room created');
-      } else {
-        await roomsApi.update(modal.id, payload);
-        toast('success', 'Room updated');
+      let imagePath = form.image_url || null;
+
+      if (imageFile) {
+        const { data: uploaded } = await roomsApi.uploadImage(imageFile);
+        imagePath = uploaded.image_url;
       }
+
+      const payload = {
+        ...form,
+        category_id: Number(form.category_id),
+        capacity: Number(form.capacity),
+        floor_number: form.floor_number === '' ? null : Number(form.floor_number),
+        image_url: imagePath,
+      };
+
+      const res =
+        modal.mode === 'create'
+          ? await roomsApi.create(payload)
+          : await roomsApi.update(modal.id, payload);
+
+      const saved = res.data.data;
+
+      // Update the list in place. No reload, so the page stays instant.
+      roomState.setData((prev) => {
+        const list = prev ?? [];
+        return modal.mode === 'create'
+          ? [saved, ...list]
+          : list.map((r) => (r.id === saved.id ? saved : r));
+      });
+
+      toast('success', modal.mode === 'create' ? 'Room created' : 'Room updated');
       setModal(null);
-      load();
     } catch (err) {
       if (err.response?.status === 422) {
-        setErrors({ form: err.response.data.errors });
+        setErrors({ form: err.response.data.errors || [err.response.data.message] });
       } else {
         showError('Save failed', err.response?.data?.message || 'Please try again.');
       }
@@ -133,12 +195,14 @@ export default function RoomsPage() {
 
     try {
       await roomsApi.remove(row.id);
+      roomState.setData((prev) => (prev ?? []).filter((r) => r.id !== row.id));
       toast('success', 'Room deleted');
-      load();
     } catch (err) {
       showError('Cannot delete', err.response?.data?.message || 'Something went wrong.');
     }
   }
+
+  const loading = roomState.loading;
 
   return (
     <section>
@@ -154,7 +218,7 @@ export default function RoomsPage() {
         </button>
       </div>
 
-      {categories.length === 0 && !loading && (
+      {categories.length === 0 && !categoryState.loading && (
         <div className="auth-message auth-error">Create a room category first.</div>
       )}
 
@@ -188,6 +252,7 @@ export default function RoomsPage() {
           <table className="admin-table">
             <thead>
               <tr>
+                <th>Photo</th>
                 <th>Room</th>
                 <th>Category</th>
                 <th>Floor</th>
@@ -202,6 +267,18 @@ export default function RoomsPage() {
                 const meta = statusMeta(row.status);
                 return (
                   <tr key={row.id}>
+                    <td>
+                      {row.image_url ? (
+                        <img
+                          src={imageSrc(row.image_url)}
+                          alt={`Room ${row.room_number}`}
+                          loading="lazy"
+                          className="thumb"
+                        />
+                      ) : (
+                        <span className="muted">No photo</span>
+                      )}
+                    </td>
                     <td>
                       <strong>{row.room_number}</strong>
                     </td>
@@ -236,11 +313,46 @@ export default function RoomsPage() {
           <form onSubmit={handleSave}>
             {errors.form && (
               <div className="auth-message auth-error" role="alert">
-                {errors.form.map((m) => (
+                {(Array.isArray(errors.form) ? errors.form : [errors.form]).map((m) => (
                   <div key={m}>{m}</div>
                 ))}
               </div>
             )}
+
+            <div className="field">
+              <span>Room photo</span>
+              <div className="photo-picker">
+                {preview ? (
+                  <img src={preview} alt="Room preview" className="photo-preview" />
+                ) : (
+                  <span className="muted">No photo selected</span>
+                )}
+
+                <div className="photo-actions">
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => fileInput.current?.click()}
+                  >
+                    {preview ? 'Change photo' : 'Upload image'}
+                  </button>
+                  {preview && (
+                    <button type="button" className="btn btn-danger-ghost" onClick={resetImage}>
+                      Remove
+                    </button>
+                  )}
+                </div>
+
+                <input
+                  ref={fileInput}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleFile}
+                  hidden
+                />
+                <small className="muted">JPG, PNG, or WebP, up to 3 MB.</small>
+              </div>
+            </div>
 
             <label className="field">
               <span>Room number</span>
@@ -315,16 +427,6 @@ export default function RoomsPage() {
                 rows={3}
                 className="input"
                 value={form.description}
-                onChange={handleChange}
-              />
-            </label>
-
-            <label className="field">
-              <span>Image URL</span>
-              <input
-                name="image_url"
-                className="input"
-                value={form.image_url}
                 onChange={handleChange}
               />
             </label>

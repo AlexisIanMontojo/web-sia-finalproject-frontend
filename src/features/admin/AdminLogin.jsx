@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom';
 import logo from '../../assets/images/logo.jpg';
 import { useAuth } from '../auth/AuthContext';
 import '../auth/Auth.css';
+import { isStaffRole, homeFor } from '../../lib/roles';
 
 export default function AdminLogin() {
   const { user, status, login, logout } = useAuth();
@@ -15,9 +16,8 @@ export default function AdminLogin() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Already signed in as an admin: go straight to the panel.
-  if (status === 'authenticated' && user?.role === 'admin') {
-    return <Navigate to="/admin/dashboard" replace />;
+  if (status === 'authenticated' && isStaffRole(user?.role)) {
+    return <Navigate to={homeFor(user.role)} replace />;
   }
 
   function handleChange(event) {
@@ -39,10 +39,9 @@ export default function AdminLogin() {
         portal: 'admin',
       });
 
-      // The backend already rejects non-admins. This is a second check.
-      if (signedInUser.role !== 'admin') {
+      if (!isStaffRole(signedInUser.role)) {
         await logout();
-        setError('This login is for administrators only.');
+        setError('This login is for staff accounts only.');
       }
     } catch (err) {
       setError(

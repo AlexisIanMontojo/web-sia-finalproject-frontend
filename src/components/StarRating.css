@@ -1,0 +1,21 @@
+.stars { display: inline-flex; gap: 2px; line-height: 1; align-items: center; }
+
+.star { color: #d1d5db; font-size: 1.2rem; }
+.star.on { color: #f5b301; }
+
+.stars-sm .star { font-size: 0.95rem; }
+.stars-lg .star { font-size: 1.8rem; }
+
+.stars-interactive .star {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  padding: 0 2px;
+  font: inherit;
+  font-size: 1.6rem;
+}
+
+.stars-interactive .star:focus-visible {
+  outline: 2px solid #174d38;
+  border-radius: 4px;
+}

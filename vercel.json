@@ -1,6 +1,13 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://hotel-backend-test.onrender.com/api/:path*"
+    },
+    {
+      "source": "/uploads/:path*",
+      "destination": "https://hotel-backend-test.onrender.com/uploads/:path*"
+    },
     {
       "source": "/(.*)",
       "destination": "/index.html"

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { pricingApi, categoriesApi } from '../adminService';
 import { toast, showError, confirmDelete } from '../../../lib/alerts';
+import { useCachedFetch, invalidate } from '../../../lib/cache';
 import Modal from '../components/Modal';
 import '../../../layouts/Admin.css';
 
 const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
 
-// Local calendar date (YYYY-MM-DD), so the date doesn't shift near midnight.
 function localToday() {
   const d = new Date();
   return [
@@ -35,41 +35,38 @@ const EMPTY = {
   is_active: true,
 };
 
+const fetchPricing = async () => {
+  const { data } = await pricingApi.list();
+  return Array.isArray(data?.data) ? data.data : [];
+};
+
+const fetchCategories = async () => {
+  const { data } = await categoriesApi.list();
+  return Array.isArray(data?.data) ? data.data : [];
+};
+
 export default function PricingPage() {
-  const [rows, setRows] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const pricingState = useCachedFetch('admin:pricing', fetchPricing);
+  const categoryState = useCachedFetch('admin:categories', fetchCategories);
+
+  const rows = pricingState.data ?? [];
+  const categories = categoryState.data ?? [];
+
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(EMPTY);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const [priceRes, catRes] = await Promise.all([pricingApi.list(), categoriesApi.list()]);
-      setRows(Array.isArray(priceRes.data?.data) ? priceRes.data.data : []);
-      setCategories(Array.isArray(catRes.data?.data) ? catRes.data.data : []);
-    } catch (err) {
-      showError(
-        'Could not load pricing',
-        err.response?.data?.message || 'Check your connection and try again.'
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    load();
-  }, []);
+    if (pricingState.error) {
+      showError('Could not load pricing', pricingState.error.response?.data?.message || 'Try again.');
+    }
+  }, [pricingState.error]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return (rows ?? []).filter(
-      (r) => !q || (r.category_name || '').toLowerCase().includes(q)
-    );
+    return rows.filter((r) => !q || (r.category_name || '').toLowerCase().includes(q));
   }, [rows, search]);
 
   function openCreate() {
@@ -113,18 +110,25 @@ export default function PricingPage() {
     };
 
     try {
-      if (modal.mode === 'create') {
-        await pricingApi.create(payload);
-        toast('success', 'Price created');
-      } else {
-        await pricingApi.update(modal.id, payload);
-        toast('success', 'Price updated');
-      }
+      const res =
+        modal.mode === 'create'
+          ? await pricingApi.create(payload)
+          : await pricingApi.update(modal.id, payload);
+
+      const saved = res.data.data;
+
+      pricingState.setData((prev) => {
+        const list = prev ?? [];
+        return modal.mode === 'create'
+          ? [saved, ...list]
+          : list.map((r) => (r.id === saved.id ? saved : r));
+      });
+
+      toast('success', modal.mode === 'create' ? 'Price created' : 'Price updated');
       setModal(null);
-      load();
     } catch (err) {
       if (err.response?.status === 422) {
-        setErrors({ form: err.response.data.errors });
+        setErrors({ form: err.response.data.errors || [err.response.data.message] });
       } else {
         showError('Save failed', err.response?.data?.message || 'Please try again.');
       }
@@ -139,12 +143,14 @@ export default function PricingPage() {
 
     try {
       await pricingApi.remove(row.id);
+      pricingState.setData((prev) => (prev ?? []).filter((r) => r.id !== row.id));
       toast('success', 'Price deleted');
-      load();
     } catch (err) {
       showError('Cannot delete', err.response?.data?.message || 'Something went wrong.');
     }
   }
+
+  const loading = pricingState.loading;
 
   return (
     <section>
@@ -188,9 +194,7 @@ export default function PricingPage() {
             <tbody>
               {filtered.map((row) => (
                 <tr key={row.id}>
-                  <td>
-                    <strong>{row.category_name}</strong>
-                  </td>
+                  <td><strong>{row.category_name}</strong></td>
                   <td>{peso.format(row.nightly_rate)}</td>
                   <td>{peso.format(row.extra_guest_charge)}</td>
                   <td>{peso.format(row.cleaning_fee)}</td>
@@ -207,12 +211,8 @@ export default function PricingPage() {
                     )}
                   </td>
                   <td className="text-right">
-                    <button className="btn btn-ghost" onClick={() => openEdit(row)}>
-                      Edit
-                    </button>
-                    <button className="btn btn-danger-ghost" onClick={() => handleDelete(row)}>
-                      Delete
-                    </button>
+                    <button className="btn btn-ghost" onClick={() => openEdit(row)}>Edit</button>
+                    <button className="btn btn-danger-ghost" onClick={() => handleDelete(row)}>Delete</button>
                   </td>
                 </tr>
               ))}
@@ -229,7 +229,7 @@ export default function PricingPage() {
           <form onSubmit={handleSave}>
             {errors.form && (
               <div className="auth-message auth-error" role="alert">
-                {errors.form.map((m) => (
+                {(Array.isArray(errors.form) ? errors.form : [errors.form]).map((m) => (
                   <div key={m}>{m}</div>
                 ))}
               </div>
@@ -237,109 +237,49 @@ export default function PricingPage() {
 
             <label className="field">
               <span>Category</span>
-              <select
-                name="category_id"
-                className="input"
-                value={form.category_id}
-                onChange={handleChange}
-                required
-              >
+              <select name="category_id" className="input" value={form.category_id} onChange={handleChange} required>
                 <option value="">Select…</option>
                 {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
             </label>
 
             <label className="field">
               <span>Nightly rate (₱)</span>
-              <input
-                name="nightly_rate"
-                type="number"
-                min="0.01"
-                step="0.01"
-                className="input"
-                value={form.nightly_rate}
-                onChange={handleChange}
-                required
-              />
+              <input name="nightly_rate" type="number" min="0.01" step="0.01" className="input" value={form.nightly_rate} onChange={handleChange} required />
             </label>
 
             <div className="form-row">
               <label className="field">
                 <span>Extra guest charge (₱)</span>
-                <input
-                  name="extra_guest_charge"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="input"
-                  value={form.extra_guest_charge}
-                  onChange={handleChange}
-                />
+                <input name="extra_guest_charge" type="number" min="0" step="0.01" className="input" value={form.extra_guest_charge} onChange={handleChange} />
               </label>
               <label className="field">
                 <span>Cleaning fee (₱)</span>
-                <input
-                  name="cleaning_fee"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="input"
-                  value={form.cleaning_fee}
-                  onChange={handleChange}
-                />
+                <input name="cleaning_fee" type="number" min="0" step="0.01" className="input" value={form.cleaning_fee} onChange={handleChange} />
               </label>
             </div>
 
             <div className="form-row">
               <label className="field">
                 <span>Effective from</span>
-                <input
-                  name="effective_from"
-                  type="date"
-                  className="input"
-                  value={form.effective_from}
-                  onChange={handleChange}
-                  required
-                />
+                <input name="effective_from" type="date" className="input" value={form.effective_from} onChange={handleChange} required />
               </label>
               <label className="field">
                 <span>Effective until</span>
-                <input
-                  name="effective_until"
-                  type="date"
-                  className="input"
-                  value={form.effective_until}
-                  onChange={handleChange}
-                />
+                <input name="effective_until" type="date" className="input" value={form.effective_until} onChange={handleChange} />
               </label>
             </div>
 
             <label className="checkbox-row">
-              <input
-                name="is_active"
-                type="checkbox"
-                checked={form.is_active}
-                onChange={handleChange}
-              />
+              <input name="is_active" type="checkbox" checked={form.is_active} onChange={handleChange} />
               <span>Active</span>
             </label>
 
             <div className="modal-footer">
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => setModal(null)}
-                disabled={saving}
-              >
-                Cancel
-              </button>
-              <button type="submit" className="btn btn-primary" disabled={saving}>
-                {saving ? 'Saving…' : 'Save'}
-              </button>
+              <button type="button" className="btn btn-ghost" onClick={() => setModal(null)} disabled={saving}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
             </div>
           </form>
         </Modal>
