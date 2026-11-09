@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { catalogueApi } from './customerService';
 import { useCachedFetch } from '../../lib/cache';
@@ -64,13 +64,19 @@ export default function BrowseRoomsPage() {
   const [onlyAvailable, setOnlyAvailable] = useState(false);
 
   // Use the cached catalogue until the visitor runs a search.
-  const result = searched ?? defaultCatalogue.data;
+  const result = searched ?? defaultCatalogue.data ?? null;
   const loading = !result && defaultCatalogue.loading;
 
-  const hasDates = Boolean(result?.search?.has_dates);
+  const search = result?.search ?? null;
+  const summary = result?.summary ?? { available: 0 };
+  const categories = Array.isArray(defaultCatalogue.data?.categories)
+    ? defaultCatalogue.data.categories.filter((c) => c && c.name)
+    : [];
+
+  const hasDates = Boolean(search?.has_dates);
 
   const rooms = useMemo(() => {
-    const list = result?.data || [];
+    const list = Array.isArray(result?.data) ? result.data.filter(Boolean) : [];
     return onlyAvailable && hasDates ? list.filter((r) => r.available) : list;
   }, [result, onlyAvailable, hasDates]);
 
@@ -83,11 +89,7 @@ export default function BrowseRoomsPage() {
     setSearchError([]);
     try {
       const { data } = await catalogueApi.rooms(toQuery(params));
-      if (isBrowseAll(params)) {
-        setSearched(null);
-      } else {
-        setSearched(data);
-      }
+      setSearched(isBrowseAll(params) ? null : data);
     } catch (err) {
       setSearchError(
         err.response?.data?.errors || [err.response?.data?.message || 'Could not load rooms.']
@@ -116,11 +118,13 @@ export default function BrowseRoomsPage() {
   }
 
   function book(room) {
+    if (!search) return;
+
     const q = new URLSearchParams({
       room: String(room.id),
-      guests: String(result.search.guests),
-      check_in: result.search.check_in,
-      check_out: result.search.check_out,
+      guests: String(search.guests),
+      check_in: search.check_in || '',
+      check_out: search.check_out || '',
     });
     navigate(`/book?${q.toString()}`);
   }
@@ -174,7 +178,7 @@ export default function BrowseRoomsPage() {
           Room type
           <select className="input" name="category_id" value={form.category_id} onChange={handleChange}>
             <option value="">All room types</option>
-            {(defaultCatalogue.data?.categories || []).map((c) => (
+            {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
@@ -200,7 +204,7 @@ export default function BrowseRoomsPage() {
             : `${rooms.length} room${rooms.length === 1 ? '' : 's'} shown`}
           {hasDates &&
             !loading &&
-            ` · ${result.summary.available} free from ${result.search.check_in} to ${result.search.check_out}`}
+            ` · ${summary.available ?? 0} free from ${search.check_in} to ${search.check_out}`}
         </p>
         {hasDates && (
           <label className="check-only">
@@ -233,10 +237,11 @@ export default function BrowseRoomsPage() {
           const badge = availabilityBadge(room, hasDates);
           const photo = photoSrc(room.image_url);
           const canBook = hasDates && room.available && Boolean(room.quote);
+          const amenities = Array.isArray(room.amenities) ? room.amenities : [];
 
           const priceLine = room.quote
             ? peso.format(room.quote.total)
-            : room.base_nightly_rate !== null
+            : room.base_nightly_rate != null
               ? `${peso.format(room.base_nightly_rate)} / night`
               : 'Price not set';
 
@@ -260,16 +265,16 @@ export default function BrowseRoomsPage() {
               </div>
 
               <div className="room-meta">
-                <span>{room.category_name}</span>
+                <span>{room.category_name || 'Room'}</span>
                 <span>Up to {room.capacity} guests</span>
-                {room.floor_number !== null && <span>Floor {room.floor_number}</span>}
+                {room.floor_number != null && <span>Floor {room.floor_number}</span>}
               </div>
 
               {room.description && <p className="muted">{room.description}</p>}
 
-              {room.amenities.length > 0 && (
+              {amenities.length > 0 && (
                 <div className="chips">
-                  {room.amenities.map((a) => (
+                  {amenities.map((a) => (
                     <span className="chip" key={a}>{a}</span>
                   ))}
                 </div>
