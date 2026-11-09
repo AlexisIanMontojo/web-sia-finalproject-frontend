@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { roomsApi, categoriesApi } from '../adminService';
 import { toast, showError, confirmDelete } from '../../../lib/alerts';
-import { useCachedFetch } from '../../../lib/cache';
+import { useCachedFetch, invalidate } from '../../../lib/cache';
 import { apiUrl } from '../../../services/api';
 import Modal from '../components/Modal';
 import '../../../layouts/Admin.css';
@@ -51,6 +51,13 @@ export default function RoomsPage() {
   const [imageFile, setImageFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const fileInput = useRef(null);
+
+  // Fetch fresh data every time the page opens, so changes made elsewhere show up.
+  useEffect(() => {
+    roomState.refresh();
+    categoryState.refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (roomState.error) {
@@ -162,13 +169,17 @@ export default function RoomsPage() {
 
       const saved = res.data.data;
 
-      // Update the list in place. No reload, so the page stays instant.
       roomState.setData((prev) => {
         const list = prev ?? [];
         return modal.mode === 'create'
           ? [saved, ...list]
           : list.map((r) => (r.id === saved.id ? saved : r));
       });
+
+      // Other cached views (Availability, Dashboard, Check-in) show rooms too.
+      invalidate('admin:rooms');
+      invalidate('admin:availability');
+      invalidate('admin:dashboard');
 
       toast('success', modal.mode === 'create' ? 'Room created' : 'Room updated');
       setModal(null);
@@ -190,6 +201,9 @@ export default function RoomsPage() {
     try {
       await roomsApi.remove(row.id);
       roomState.setData((prev) => (prev ?? []).filter((r) => r.id !== row.id));
+      invalidate('admin:rooms');
+      invalidate('admin:availability');
+      invalidate('admin:dashboard');
       toast('success', 'Room deleted');
     } catch (err) {
       showError('Cannot delete', err.response?.data?.message || 'Something went wrong.');

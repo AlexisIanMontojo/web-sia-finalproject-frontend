@@ -58,6 +58,13 @@ export default function PricingPage() {
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
+  // Fetch fresh data every time the page opens, so category renames show up.
+  useEffect(() => {
+    pricingState.refresh();
+    categoryState.refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (pricingState.error) {
       showError('Could not load pricing', pricingState.error.response?.data?.message || 'Try again.');
@@ -124,6 +131,8 @@ export default function PricingPage() {
           : list.map((r) => (r.id === saved.id ? saved : r));
       });
 
+      invalidate('admin:pricing');
+
       toast('success', modal.mode === 'create' ? 'Price created' : 'Price updated');
       setModal(null);
     } catch (err) {
@@ -144,6 +153,7 @@ export default function PricingPage() {
     try {
       await pricingApi.remove(row.id);
       pricingState.setData((prev) => (prev ?? []).filter((r) => r.id !== row.id));
+      invalidate('admin:pricing');
       toast('success', 'Price deleted');
     } catch (err) {
       showError('Cannot delete', err.response?.data?.message || 'Something went wrong.');
