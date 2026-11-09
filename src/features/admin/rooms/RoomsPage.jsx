@@ -2,10 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { roomsApi, categoriesApi } from '../adminService';
 import { toast, showError, confirmDelete } from '../../../lib/alerts';
 import { useCachedFetch } from '../../../lib/cache';
+import { apiUrl } from '../../../services/api';
 import Modal from '../components/Modal';
 import '../../../layouts/Admin.css';
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
 
 const STATUSES = [
   { value: 'available', label: 'Available', badge: 'badge-green' },
@@ -34,11 +33,6 @@ const fetchCategories = async () => {
   const { data } = await categoriesApi.list();
   return Array.isArray(data?.data) ? data.data : [];
 };
-
-function imageSrc(path) {
-  if (!path) return null;
-  return path.startsWith('http') ? path : `${API_BASE}${path}`;
-}
 
 export default function RoomsPage() {
   const roomState = useCachedFetch('admin:rooms', fetchRooms);
@@ -112,7 +106,7 @@ export default function RoomsPage() {
     });
     setErrors({});
     resetImage();
-    setPreview(row.image_url ? imageSrc(row.image_url) : null);
+    setPreview(row.image_url ? apiUrl(row.image_url) : null);
     setModal({ mode: 'edit', id: row.id });
   }
 
@@ -270,7 +264,7 @@ export default function RoomsPage() {
                     <td>
                       {row.image_url ? (
                         <img
-                          src={imageSrc(row.image_url)}
+                          src={apiUrl(row.image_url)}
                           alt={`Room ${row.room_number}`}
                           loading="lazy"
                           className="thumb"

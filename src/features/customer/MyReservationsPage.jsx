@@ -3,10 +3,10 @@ import Swal from 'sweetalert2';
 import { reservationsApi } from './customerService';
 import RequestChangeModal from './RequestChangeModal';
 import RatingsPanel from './RatingsPanel';
-import { useCachedFetch, invalidate } from '../../lib/cache';
-import '../../layouts/Customer.css';
 import ReservationServices from './ReservationServices';
 import ReservationPayment from './ReservationPayment';
+import { useCachedFetch, invalidate } from '../../lib/cache';
+import '../../layouts/Customer.css';
 
 const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
 
@@ -21,7 +21,7 @@ const STATUS_LABEL = {
 
 const fetchReservations = async () => {
   const { data } = await reservationsApi.list();
-  return data.data;
+  return Array.isArray(data?.data) ? data.data : [];
 };
 
 export default function MyReservationsPage() {
@@ -94,7 +94,7 @@ export default function MyReservationsPage() {
 
       {visible.map((r) => (
         <div className="panel" key={r.id}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          <div className="thread-head">
             <strong>{r.reservation_code}</strong>
             <span className={`status status-${r.status}`}>
               {STATUS_LABEL[r.status] || r.status}
@@ -123,8 +123,10 @@ export default function MyReservationsPage() {
               </button>
             )}
           </div>
-            {['pending', 'confirmed'].includes(r.status) && <ReservationPayment reservation={r} />}
-            {r.is_current && <ReservationServices reservation={r} />}
+
+          {['pending', 'confirmed'].includes(r.status) && <ReservationPayment reservation={r} />}
+
+          {r.is_current && <ReservationServices reservation={r} />}
         </div>
       ))}
 

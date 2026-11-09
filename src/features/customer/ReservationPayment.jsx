@@ -54,6 +54,8 @@ export default function ReservationPayment({ reservation }) {
   if (loading && !info) return <p className="muted">Loading payments…</p>;
   if (!info) return null;
 
+  const payments = Array.isArray(info.data) ? info.data : [];
+
   return (
     <div className="services-box">
       <h4>Payment</h4>
@@ -71,17 +73,19 @@ export default function ReservationPayment({ reservation }) {
         <span>{peso.format(info.balance)}</span>
       </div>
 
-      {info.data.length > 0 && (
+      {payments.length > 0 && (
         <div className="stack">
-          {info.data.map((p) => (
+          {payments.map((p) => (
             <div className="service-row" key={p.id}>
               <span>{p.kind === 'downpayment' ? 'Downpayment' : 'Balance'}</span>
               <span>{peso.format(p.amount)}</span>
               <span className={`tag ${STATUS_TAG[p.status] || ''}`}>
                 {STATUS_TEXT[p.status] || p.status}
               </span>
-              {p.status === 'paid' && p.paid_at && (
+              {p.status === 'paid' && p.paid_at ? (
                 <span className="muted">{p.paid_at.slice(0, 16)}</span>
+              ) : (
+                <span />
               )}
             </div>
           ))}

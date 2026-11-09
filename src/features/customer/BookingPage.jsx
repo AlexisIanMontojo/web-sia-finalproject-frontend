@@ -1,15 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { catalogueApi, reservationsApi } from './customerService';
+import { apiUrl } from '../../services/api';
 import '../../layouts/Customer.css';
 
 const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
-const API_BASE = import.meta.env.VITE_API_URL || '';
-
-function photoSrc(path) {
-  if (!path) return null;
-  return path.startsWith('http') ? path : `${API_BASE}${path}`;
-}
 
 export default function BookingPage() {
   const [params] = useSearchParams();
@@ -83,7 +78,7 @@ export default function BookingPage() {
           {booked.check_in_date} to {booked.check_out_date} · {booked.guests} guest(s)
         </p>
         <p><strong>Total: {peso.format(booked.total_amount)}</strong></p>
-        <p className="muted">Status: pending hotel confirmation.</p>
+        <p className="muted">Status: pending hotel confirmation. You can pay the downpayment from My Reservations.</p>
         <div>
           <Link to="/my-reservations" className="btn-main">View my reservations</Link>
         </div>
@@ -110,10 +105,10 @@ export default function BookingPage() {
       {!loading && room && (
         <div className="booking-layout">
           <div className="panel stack">
-            {photoSrc(room.image_url) ? (
+            {apiUrl(room.image_url) ? (
               <img
                 className="room-photo booking-photo"
-                src={photoSrc(room.image_url)}
+                src={apiUrl(room.image_url)}
                 alt={`Room ${room.room_number}`}
               />
             ) : (
@@ -126,12 +121,12 @@ export default function BookingPage() {
 
             <div className="room-meta">
               <span>Up to {room.capacity} guests</span>
-              {room.floor_number !== null && <span>Floor {room.floor_number}</span>}
+              {room.floor_number != null && <span>Floor {room.floor_number}</span>}
             </div>
 
             {room.description && <p>{room.description}</p>}
 
-            {room.amenities.length > 0 && (
+            {(room.amenities || []).length > 0 && (
               <>
                 <h3>Amenities</h3>
                 <div className="chips">
