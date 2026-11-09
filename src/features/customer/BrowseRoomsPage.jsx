@@ -4,6 +4,7 @@ import { catalogueApi } from './customerService';
 import { useCachedFetch } from '../../lib/cache';
 import '../../layouts/Customer.css';
 
+
 const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
