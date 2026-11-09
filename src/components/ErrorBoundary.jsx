@@ -5,7 +5,7 @@ export default class ErrorBoundary extends Component {
     super(props);
     this.state = { error: null };
   }
-
+//ah
   static getDerivedStateFromError(error) {
     return { error };
   }
