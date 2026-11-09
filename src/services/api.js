@@ -71,3 +71,11 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+// Full URL for a backend path such as /uploads/rooms/photo.jpg.
+// Empty VITE_API_URL keeps the path relative, so the proxy or rewrite handles it.
+export function apiUrl(path) {
+  if (!path) return null;
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${import.meta.env.VITE_API_URL || ''}${path}`;
+}
