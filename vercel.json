@@ -3,11 +3,11 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://hotel-backend-test-w460.onrender.com/api/:path*"
+      "destination": "https://web-sia-finalproject-backend.onrender.com/api/:path*"
     },
     {
       "source": "/uploads/:path*",
-      "destination": "https://hotel-backend-test-w460.onrender.com/uploads/:path*"
+      "destination": "https://web-sia-finalproject-backend.onrender.com/uploads/:path*"
     },
     {
       "source": "/(.*)",
