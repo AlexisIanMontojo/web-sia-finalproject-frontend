@@ -11,7 +11,7 @@ const fetchDashboard = async () => {
   const { data } = await getDashboardStats();
   return data;
 };
-
+// Add
 const STATUS_LABEL = {
   available: 'Available',
   maintenance: 'Maintenance',
