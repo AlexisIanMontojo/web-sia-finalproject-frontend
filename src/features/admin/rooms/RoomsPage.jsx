@@ -87,9 +87,18 @@ export default function RoomsPage() {
     return STATUSES.find((s) => s.value === value) || STATUSES[0];
   }
 
+  // Clears the picked file only, used when opening the modal.
   function resetImage() {
     setImageFile(null);
     setPreview(null);
+    if (fileInput.current) fileInput.current.value = '';
+  }
+
+  // Clears the photo entirely, so saving sends null and the room loses its image.
+  function removeImage() {
+    setImageFile(null);
+    setPreview(null);
+    setForm((f) => ({ ...f, image_url: '' }));
     if (fileInput.current) fileInput.current.value = '';
   }
 
@@ -345,7 +354,7 @@ export default function RoomsPage() {
                     {preview ? 'Change photo' : 'Upload image'}
                   </button>
                   {preview && (
-                    <button type="button" className="btn btn-danger-ghost" onClick={resetImage}>
+                    <button type="button" className="btn btn-danger-ghost" onClick={removeImage}>
                       Remove
                     </button>
                   )}
