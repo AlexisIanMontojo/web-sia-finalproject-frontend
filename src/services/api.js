@@ -2,7 +2,10 @@ import axios from 'axios';
 
 let accessToken = null;
 
-export const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+const configuredApiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+
+// Production requests stay same-origin and use the Vercel /api and /uploads rewrites.
+export const API_BASE_URL = import.meta.env.PROD ? '' : configuredApiBaseUrl;
 
 export function setAccessToken(token) {
   accessToken = token;
