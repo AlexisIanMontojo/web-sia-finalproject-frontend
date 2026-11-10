@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { catalogueApi, reservationsApi } from './customerService';
 import { apiUrl } from '../../services/api';
+import RoomImage from '../../components/RoomImage';
 import '../../layouts/Customer.css';
 
 const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
@@ -105,17 +106,12 @@ export default function BookingPage() {
       {!loading && room && (
         <div className="booking-layout">
           <div className="panel stack">
-            {apiUrl(room.image_url) ? (
-              <img
-                className="room-photo booking-photo"
-                src={apiUrl(room.image_url)}
-                alt={`Room ${room.room_number}`}
-              />
-            ) : (
-              <div className="room-photo room-photo-empty booking-photo">
-                Room {room.room_number}
-              </div>
-            )}
+            <RoomImage
+              className="room-photo booking-photo"
+              src={apiUrl(room.image_url)}
+              alt={`Room ${room.room_number}`}
+              placeholder={`Room ${room.room_number}`}
+            />
 
             <h2>Room {room.room_number} · {room.category_name}</h2>
 

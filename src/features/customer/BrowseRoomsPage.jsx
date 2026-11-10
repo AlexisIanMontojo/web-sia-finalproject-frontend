@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { catalogueApi } from './customerService';
 import { useCachedFetch } from '../../lib/cache';
 import { apiUrl } from '../../services/api';
+import RoomImage from '../../components/RoomImage';
 import '../../layouts/Customer.css';
 
 
@@ -256,11 +257,11 @@ export default function BrowseRoomsPage() {
 
           return (
             <article className="room-card" key={room.id}>
-              {photo ? (
-                <img className="room-photo" src={photo} alt={`Room ${room.room_number}`} loading="lazy" />
-              ) : (
-                <div className="room-photo room-photo-empty">Room {room.room_number}</div>
-              )}
+              <RoomImage
+                src={photo}
+                alt={`Room ${room.room_number}`}
+                placeholder={`Room ${room.room_number}`}
+              />
 
               <div className="room-head">
                 <h3>Room {room.room_number}</h3>
