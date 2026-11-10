@@ -2,12 +2,14 @@ import axios from 'axios';
 
 let accessToken = null;
 
+export const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+
 export function setAccessToken(token) {
   accessToken = token;
 }
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '',
+  baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -73,9 +75,9 @@ api.interceptors.response.use(
 export default api;
 
 // Full URL for a backend path such as /uploads/rooms/photo.jpg.
-// Empty VITE_API_URL keeps the path relative, so the proxy or rewrite handles it.
+// An empty VITE_API_URL leaves the path relative for the local proxy or Vercel rewrite.
 export function apiUrl(path) {
   if (!path) return null;
   if (/^https?:\/\//i.test(path)) return path;
-  return `${import.meta.env.VITE_API_URL || ''}${path}`;
+  return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
 }

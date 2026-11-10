@@ -2,11 +2,11 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { catalogueApi } from './customerService';
 import { useCachedFetch } from '../../lib/cache';
+import { apiUrl } from '../../services/api';
 import '../../layouts/Customer.css';
 
 
 const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
-const API_BASE = import.meta.env.VITE_API_URL || '';
 
 const STATUS_TEXT = {
   maintenance: 'Under maintenance',
@@ -26,8 +26,7 @@ function localDate(offset = 0) {
 }
 
 function photoSrc(path) {
-  if (!path) return null;
-  return path.startsWith('http') ? path : `${API_BASE}${path}`;
+  return apiUrl(path);
 }
 
 function toQuery(p) {
