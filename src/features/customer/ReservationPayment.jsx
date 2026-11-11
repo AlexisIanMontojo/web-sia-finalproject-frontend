@@ -4,6 +4,10 @@ import { showError } from '../../lib/alerts';
 import '../../layouts/Customer.css';
 
 const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
+const fetchPayments = async (id, externalId) => {
+  const { data } = await paymentsApi.list(id, externalId);
+  return data;
+};
 
 const STATUS_TEXT = {
   pending: 'Awaiting payment',
@@ -19,7 +23,7 @@ const STATUS_TAG = {
   failed: 'tag-warn',
 };
 
-export default function ReservationPayment({ reservation }) {
+export default function ReservationPayment({ reservation, verifyExternalId = '' }) {
   const [loading, setLoading] = useState(true);
   const [info, setInfo] = useState(null);
   const [paying, setPaying] = useState(false);
@@ -27,8 +31,7 @@ export default function ReservationPayment({ reservation }) {
   async function load() {
     setLoading(true);
     try {
-      const { data } = await paymentsApi.list(reservation.id);
-      setInfo(data);
+      setInfo(await fetchPayments(reservation.id, verifyExternalId));
     } catch (err) {
       showError('Could not load payments', err.response?.data?.message || 'Try again.');
     } finally {
@@ -37,8 +40,25 @@ export default function ReservationPayment({ reservation }) {
   }
 
   useEffect(() => {
-    load();
-  }, [reservation.id]);
+    let active = true;
+
+    fetchPayments(reservation.id, verifyExternalId)
+      .then((data) => {
+        if (active) setInfo(data);
+      })
+      .catch((err) => {
+        if (active) {
+          showError('Could not load payments', err.response?.data?.message || 'Try again.');
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [reservation.id, verifyExternalId]);
 
   async function payDownpayment() {
     setPaying(true);
@@ -100,8 +120,16 @@ export default function ReservationPayment({ reservation }) {
         </div>
       )}
 
+      {payments.some((payment) => payment.status === 'pending') && (
+        <div className="map-actions">
+          <button className="btn-outline" disabled={loading} onClick={load}>
+            {loading ? 'Checking…' : 'Refresh payment status'}
+          </button>
+        </div>
+      )}
+
       <p className="muted">
-        After paying, reload this page to see the update. The hotel still confirms your booking.
+        Payment status is verified with Xendit. The hotel still confirms your booking.
       </p>
     </div>
   );

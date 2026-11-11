@@ -9,6 +9,7 @@ import Register from '../features/auth/Register';
 import VerifyEmail from '../features/auth/VerifyEmail';
 import ForgotPasswordPage from '../features/auth/ForgotPasswordPage';
 import ResetPasswordPage from '../features/auth/ResetPasswordPage';
+import PaymentReturn from '../features/auth/PaymentReturn';
 import CustomerLayout from '../layouts/CustomerLayout';
 import BrowseRoomsPage from '../features/customer/BrowseRoomsPage';
 import BookingPage from '../features/customer/BookingPage';
@@ -34,6 +35,7 @@ import CheckinOutPage from '../features/admin/checkinout/CheckinOutPage';
 import NotificationsPage from '../features/admin/notifications/NotificationsPage';
 import ReviewsPage from '../features/admin/reviews/ReviewsPage';
 import ServiceRequestsPage from '../features/admin/services/ServiceRequestsPage';
+import PaymentsPage from '../features/admin/payments/PaymentsPage';
 
 export default function AppRoutes() {
   return (
@@ -47,6 +49,7 @@ export default function AppRoutes() {
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/payment-return" element={<PaymentReturn />} />
 
         <Route element={<CustomerLayout />}>
           <Route path="/rooms" element={<BrowseRoomsPage />} />
@@ -73,7 +76,7 @@ export default function AppRoutes() {
               <Route path="/admin/categories" element={<CategoriesPage />} />
               <Route path="/admin/rooms" element={<RoomsPage />} />
               <Route path="/admin/pricing" element={<PricingPage />} />
-              <Route path="/admin/payments" element={<AdminPlaceholder title="Payments & Billing" />} />
+              <Route path="/admin/payments" element={<PaymentsPage />} />
               <Route path="/admin/reviews" element={<ReviewsPage />} />
               <Route path="/admin/reports" element={<AdminPlaceholder title="Reports" />} />
             </Route>

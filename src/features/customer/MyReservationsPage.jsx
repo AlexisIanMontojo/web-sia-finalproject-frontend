@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { reservationsApi } from './customerService';
 import RequestChangeModal from './RequestChangeModal';
@@ -26,7 +27,16 @@ const fetchReservations = async () => {
 
 export default function MyReservationsPage() {
   const reservations = useCachedFetch('customer:reservations', fetchReservations);
+  const [searchParams] = useSearchParams();
   const rows = reservations.data ?? [];
+  const legacyPaidValue = searchParams.get('paid');
+  const paymentResult = searchParams.get('result') || (
+    legacyPaidValue ? (legacyPaidValue === 'failed' ? 'failed' : 'success') : ''
+  );
+  const returnedReservationId = searchParams.get('reservation_id');
+  const returnedExternalId = searchParams.get('external_id') || (
+    legacyPaidValue && legacyPaidValue !== 'failed' ? legacyPaidValue : ''
+  );
 
   const [tab, setTab] = useState('current');
   const [changing, setChanging] = useState(null);
@@ -70,6 +80,18 @@ export default function MyReservationsPage() {
   return (
     <section>
       <h1>My Reservations</h1>
+
+      {paymentResult === 'success' && (
+        <div className="panel" role="status">
+          We received your payment return. Check the payment status below; it is only marked paid
+          after verification with Xendit.
+        </div>
+      )}
+      {paymentResult === 'failed' && (
+        <div className="error-box" role="status">
+          The payment was not completed. You can try again from the reservation below.
+        </div>
+      )}
 
       <div className="tabs">
         <button className={`tab ${tab === 'current' ? 'active' : ''}`} onClick={() => setTab('current')}>
@@ -124,7 +146,17 @@ export default function MyReservationsPage() {
             )}
           </div>
 
-          {['pending', 'confirmed'].includes(r.status) && <ReservationPayment reservation={r} />}
+          {['pending', 'confirmed'].includes(r.status) && (
+            <ReservationPayment
+              reservation={r}
+              verifyExternalId={
+                paymentResult === 'success'
+                && (!returnedReservationId || String(r.id) === returnedReservationId)
+                  ? returnedExternalId
+                  : ''
+              }
+            />
+          )}
 
           {r.is_current && <ReservationServices reservation={r} />}
         </div>

@@ -71,6 +71,8 @@ export const servicesApi = {
 };
 
 export const paymentsApi = {
-  list: (id) => api.get(`/api/customer/reservations/${id}/payments`),
+  list: (id, externalId = '') => api.get(`/api/customer/reservations/${id}/payments`, {
+    params: externalId ? { external_id: externalId } : {},
+  }),
   downpayment: (id) => api.post(`/api/customer/reservations/${id}/downpayment`),
 };

@@ -94,3 +94,7 @@ export const serviceCatalogApi = {
   create: (data) => api.post('/api/admin/service-catalog', data),
   update: (id, data) => api.put(`/api/admin/service-catalog/${id}`, data),
 };
+
+export const paymentsAdminApi = {
+  list: () => api.get('/api/admin/payments'),
+};
