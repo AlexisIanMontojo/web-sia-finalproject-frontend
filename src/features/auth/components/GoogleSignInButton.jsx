@@ -1,12 +1,16 @@
 import { GoogleLogin } from '@react-oauth/google';
 
-export default function GoogleSignInButton({ onSuccess, onError }) {
+export default function GoogleSignInButton({
+  onSuccess,
+  onError,
+  text = 'signup_with',
+}) {
   return (
     <div className="google-sign-in-button">
       <GoogleLogin
         onSuccess={onSuccess}
         onError={onError}
-        text="signup_with"
+        text={text}
         size="large"
         theme="outline"
         shape="rectangular"
