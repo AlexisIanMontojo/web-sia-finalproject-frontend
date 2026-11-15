@@ -55,6 +55,24 @@ export const testimonialApi = {
   list: () => api.get('/api/public/testimonials'),
 };
 
+export const fetchDefaultCatalogue = async () => {
+  const { data } = await catalogueApi.rooms({ guests: 1 });
+  return data;
+};
+
+export const fetchHotelPageData = async () => {
+  const [info, mapRes] = await Promise.all([hotelApi.info(), mapApi.get()]);
+  return {
+    hotel: info.data.hotel,
+    map: mapRes.data.configured ? mapRes.data.map : null,
+  };
+};
+
+export const fetchTestimonials = async () => {
+  const { data } = await testimonialApi.list();
+  return { data: data.data, summary: data.summary };
+};
+
 export const messagesApi = {
   list: () => api.get('/api/customer/messages'),
   send: (data) => api.post('/api/customer/messages', data),

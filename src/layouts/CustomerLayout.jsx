@@ -1,19 +1,36 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthContext';
-import { messagesApi } from '../features/customer/customerService';
+import {
+  fetchDefaultCatalogue,
+  fetchHotelPageData,
+  messagesApi,
+} from '../features/customer/customerService';
+import { prefetchCachedFetch } from '../lib/cache';
 import './Customer.css';
+
+const PUBLIC_CACHE_OPTIONS = {
+  ttlMs: 5 * 60_000,
+  persist: true,
+  staleWhileRevalidateMs: 30 * 60_000,
+};
+
+function prefetchPage(path) {
+  if (path === '/rooms') {
+    void prefetchCachedFetch('public:rooms:default', fetchDefaultCatalogue, PUBLIC_CACHE_OPTIONS);
+  } else if (path === '/hotel') {
+    void prefetchCachedFetch('public:hotel', fetchHotelPageData, PUBLIC_CACHE_OPTIONS);
+  }
+}
 
 export default function CustomerLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [unread, setUnread] = useState(0);
+  const unreadCount = user ? unread : 0;
 
   useEffect(() => {
-    if (!user) {
-      setUnread(0);
-      return undefined;
-    }
+    if (!user) return undefined;
 
     let active = true;
 
@@ -48,14 +65,18 @@ export default function CustomerLayout() {
         <Link to="/rooms" className="cust-brand">Hotel Reservation</Link>
 
         <nav>
-          <NavLink to="/rooms">Rooms</NavLink>
-          <NavLink to="/hotel">Hotel</NavLink>
+          <NavLink to="/rooms" onMouseEnter={() => prefetchPage('/rooms')} onFocus={() => prefetchPage('/rooms')}>
+            Rooms
+          </NavLink>
+          <NavLink to="/hotel" onMouseEnter={() => prefetchPage('/hotel')} onFocus={() => prefetchPage('/hotel')}>
+            Hotel
+          </NavLink>
           {user && (
             <NavLink to="/contact" className="nav-bell">
               Contact
-              {unread > 0 && (
-                <span className="bell-badge" aria-label={`${unread} new notifications`}>
-                  {unread}
+              {unreadCount > 0 && (
+                <span className="bell-badge" aria-label={`${unreadCount} new notifications`}>
+                  {unreadCount}
                 </span>
               )}
             </NavLink>

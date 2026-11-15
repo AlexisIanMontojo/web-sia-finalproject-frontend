@@ -102,3 +102,66 @@ export const paymentsAdminApi = {
   list: () => api.get('/api/admin/payments'),
   markCashPaid: (id) => api.post(`/api/admin/payments/${id}/cash-paid`),
 };
+
+const listData = async (request) => {
+  const { data } = await request();
+  return Array.isArray(data?.data) ? data.data : [];
+};
+
+export const adminPagePrefetchers = {
+  '/admin/dashboard': [
+    { key: 'admin:dashboard', fetcher: async () => (await getDashboardStats()).data },
+  ],
+  '/admin/staff': [
+    { key: 'admin:staff', fetcher: () => listData(() => staffApi.list()) },
+  ],
+  '/admin/hotel': [
+    { key: 'admin:hotel', fetcher: async () => (await hotelAdminApi.get()).data.hotel },
+  ],
+  '/admin/categories': [
+    { key: 'admin:categories', fetcher: () => listData(() => categoriesApi.list()) },
+  ],
+  '/admin/rooms': [
+    { key: 'admin:rooms', fetcher: () => listData(() => roomsApi.list()) },
+    { key: 'admin:categories', fetcher: () => listData(() => categoriesApi.list()) },
+  ],
+  '/admin/pricing': [
+    { key: 'admin:pricing', fetcher: () => listData(() => pricingApi.list()) },
+    { key: 'admin:categories', fetcher: () => listData(() => categoriesApi.list()) },
+  ],
+  '/admin/services': [
+    {
+      key: 'admin:service-requests:requested',
+      fetcher: () => listData(() => serviceRequestsApi.list('requested')),
+    },
+    {
+      key: 'admin:service-catalog',
+      managerOnly: true,
+      fetcher: () => listData(() => serviceCatalogApi.list()),
+    },
+  ],
+  '/admin/reservations': [
+    {
+      key: 'admin:reservations:pending',
+      fetcher: () => listData(() => reservationsApi.list('pending')),
+    },
+  ],
+  '/admin/customers': [
+    { key: 'admin:customers', fetcher: () => listData(() => customersApi.list()) },
+  ],
+  '/admin/check-in-out': [
+    { key: 'admin:checkinout', fetcher: async () => (await checkinApi.list()).data },
+  ],
+  '/admin/payments': [
+    { key: 'admin:payments', fetcher: () => listData(() => paymentsAdminApi.list()) },
+  ],
+  '/admin/notifications': [
+    {
+      key: 'admin:messages:all',
+      fetcher: async () => (await adminMessagesApi.list('all')).data,
+    },
+  ],
+  '/admin/reviews': [
+    { key: 'admin:reviews', fetcher: () => listData(() => adminReviewsApi.list()) },
+  ],
+};

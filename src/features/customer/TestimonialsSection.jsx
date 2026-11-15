@@ -1,19 +1,16 @@
-import { useEffect, useState } from 'react';
-import { testimonialApi } from './customerService';
+import { fetchTestimonials } from './customerService';
+import { useCachedFetch } from '../../lib/cache';
 import StarRating from '../../components/StarRating';
 import '../../layouts/Customer.css';
 
 export default function TestimonialsSection() {
-  const [state, setState] = useState({ loading: true, data: [], summary: null });
+  const { data: state } = useCachedFetch('public:testimonials', fetchTestimonials, {
+    ttlMs: 5 * 60_000,
+    persist: true,
+    staleWhileRevalidateMs: 30 * 60_000,
+  });
 
-  useEffect(() => {
-    testimonialApi
-      .list()
-      .then(({ data }) => setState({ loading: false, data: data.data, summary: data.summary }))
-      .catch(() => setState({ loading: false, data: [], summary: null }));
-  }, []);
-
-  if (state.loading || state.data.length === 0) {
+  if (!state || state.data.length === 0) {
     return null;
   }
 

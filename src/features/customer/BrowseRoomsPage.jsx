@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { catalogueApi } from './customerService';
+import { catalogueApi, fetchDefaultCatalogue } from './customerService';
 import { useCachedFetch } from '../../lib/cache';
 import { apiUrl } from '../../services/api';
 import RoomImage from '../../components/RoomImage';
@@ -42,11 +42,6 @@ function isBrowseAll(p) {
   return !p.check_in && !p.check_out && Number(p.guests) === 1 && !p.category_id;
 }
 
-// Defined outside the component so the cache hook keeps a stable reference.
-// A new function on every render restarts the fetch, which caused the request loop.
-const fetchDefaultCatalogue = () =>
-  catalogueApi.rooms(toQuery(BROWSE)).then(({ data }) => data);
-
 function availabilityBadge(room, hasDates) {
   if (!hasDates) return { text: 'Choose dates to check', cls: 'badge-info' };
   if (room.available) return { text: 'Available for your dates', cls: 'badge-avail' };
@@ -59,7 +54,11 @@ export default function BrowseRoomsPage() {
   const navigate = useNavigate();
 
   // The default catalogue (no dates, all types, 1 guest) is cached and refreshed in the background.
-  const defaultCatalogue = useCachedFetch('public:rooms:default', fetchDefaultCatalogue);
+  const defaultCatalogue = useCachedFetch('public:rooms:default', fetchDefaultCatalogue, {
+    ttlMs: 5 * 60_000,
+    persist: true,
+    staleWhileRevalidateMs: 30 * 60_000,
+  });
 
   const [form, setForm] = useState(BROWSE);
   const [searched, setSearched] = useState(null);

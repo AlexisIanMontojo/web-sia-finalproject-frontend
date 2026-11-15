@@ -1,21 +1,17 @@
-import { hotelApi, mapApi } from './customerService';
+import { fetchHotelPageData } from './customerService';
 import { useCachedFetch } from '../../lib/cache';
 import LocationPicker from '../../components/LocationPicker';
 import TestimonialsSection from './TestimonialsSection';
 import '../../layouts/Customer.css';
 
-const fetchHotelPage = async () => {
-  const [info, mapRes] = await Promise.all([hotelApi.info(), mapApi.get()]);
-  return {
-    hotel: info.data.hotel,
-    map: mapRes.data.configured ? mapRes.data.map : null,
-  };
-};
-
 export default function HotelInfoPage() {
-  const { data, loading, error } = useCachedFetch('public:hotel', fetchHotelPage);
+  const { data, error } = useCachedFetch('public:hotel', fetchHotelPageData, {
+    ttlMs: 5 * 60_000,
+    persist: true,
+    staleWhileRevalidateMs: 30 * 60_000,
+  });
 
-  if (error) {
+  if (error && !data) {
     return (
       <div className="error-box">
         {error.response?.data?.message || 'Could not load hotel information.'}
@@ -31,6 +27,11 @@ export default function HotelInfoPage() {
 
   return (
     <section className="stack">
+      {error && (
+        <div className="error-box">
+          Could not refresh hotel information. Showing the saved copy.
+        </div>
+      )}
       <div className="hero">
         <h1>{hotel.name}</h1>
         <p>{hotel.address}</p>

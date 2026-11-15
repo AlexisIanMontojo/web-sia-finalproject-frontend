@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthContext';
 import { ADMIN_ROLES, MANAGER_ROLES, STAFF_ROLES } from '../lib/roles';
+import { prefetchCachedFetch } from '../lib/cache';
+import { adminPagePrefetchers } from '../features/admin/adminService';
 import './Admin.css';
 
 const NAV_ITEMS = [
@@ -24,6 +26,15 @@ const NAV_ITEMS = [
 
 const ROLE_TEXT = { admin: 'Admin', manager: 'Manager', staff: 'Front desk' };
 
+function prefetchAdminPage(path, role) {
+  for (const item of adminPagePrefetchers[path] || []) {
+    if (item.managerOnly && !MANAGER_ROLES.includes(role)) continue;
+    void prefetchCachedFetch(item.key, item.fetcher).catch((error) => {
+      console.warn(`Could not prefetch ${path}.`, error);
+    });
+  }
+}
+
 export default function AdminLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -45,6 +56,8 @@ export default function AdminLayout() {
             <NavLink
               key={item.to}
               to={item.to}
+              onMouseEnter={() => prefetchAdminPage(item.to, user?.role)}
+              onFocus={() => prefetchAdminPage(item.to, user?.role)}
               onClick={() => setMenuOpen(false)}
               className={({ isActive }) => (isActive ? 'admin-link active' : 'admin-link')}
             >
