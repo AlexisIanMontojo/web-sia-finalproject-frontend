@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { serviceRequestsApi, serviceCatalogApi } from '../adminService';
 import { toast, showError } from '../../../lib/alerts';
 import { useAuth } from '../../auth/AuthContext';
 import { MANAGER_ROLES } from '../../../lib/roles';
+import { useCachedFetch } from '../../../lib/cache';
 import Modal from '../components/Modal';
 import '../../../layouts/Admin.css';
 import '../../../layouts/Messages.css';
@@ -56,6 +57,18 @@ function formatQuantity(q, unit) {
   return unit === 'per_kilo' ? `${Number(q).toFixed(2)} kg` : q;
 }
 
+const fetchServiceRequests = async (status) => {
+  const { data } = await serviceRequestsApi.list(status);
+  return Array.isArray(data?.data) ? data.data : [];
+};
+
+const fetchServiceCatalog = async () => {
+  const { data } = await serviceCatalogApi.list();
+  return Array.isArray(data?.data) ? data.data : [];
+};
+
+const fetchEmptyServiceCatalog = async () => [];
+
 export default function ServiceRequestsPage() {
   const { user } = useAuth();
   const canManage = MANAGER_ROLES.includes(user?.role);
@@ -63,48 +76,35 @@ export default function ServiceRequestsPage() {
   const [tab, setTab] = useState('requests');
 
   const [filter, setFilter] = useState('requested');
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
 
-  const [catalog, setCatalog] = useState([]);
-  const [catalogLoading, setCatalogLoading] = useState(false);
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(EMPTY_SERVICE);
   const [errors, setErrors] = useState([]);
   const [saving, setSaving] = useState(false);
 
-  async function loadRequests(status = filter) {
-    setLoading(true);
-    try {
-      const { data } = await serviceRequestsApi.list(status);
-      setRows(Array.isArray(data?.data) ? data.data : []);
-    } catch (err) {
-      showError('Could not load requests', err.response?.data?.message || 'Try again.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function loadCatalog() {
-    setCatalogLoading(true);
-    try {
-      const { data } = await serviceCatalogApi.list();
-      setCatalog(Array.isArray(data?.data) ? data.data : []);
-    } catch (err) {
-      showError('Could not load services', err.response?.data?.message || 'Try again.');
-    } finally {
-      setCatalogLoading(false);
-    }
-  }
+  const requestFetcher = useCallback(() => fetchServiceRequests(filter), [filter]);
+  const requestState = useCachedFetch(`admin:service-requests:${filter}`, requestFetcher);
+  const catalogState = useCachedFetch(
+    canManage ? 'admin:service-catalog' : 'admin:service-catalog:restricted',
+    canManage ? fetchServiceCatalog : fetchEmptyServiceCatalog
+  );
+  const rows = requestState.data || [];
+  const loading = requestState.loading;
+  const catalog = catalogState.data || [];
+  const catalogLoading = catalogState.loading;
 
   useEffect(() => {
-    loadRequests(filter);
-  }, [filter]);
+    if (requestState.error) {
+      showError('Could not load requests', requestState.error.response?.data?.message || 'Try again.');
+    }
+  }, [requestState.error]);
 
   useEffect(() => {
-    if (tab === 'catalogue' && canManage) loadCatalog();
-  }, [tab]);
+    if (canManage && tab === 'catalogue' && catalogState.error) {
+      showError('Could not load services', catalogState.error.response?.data?.message || 'Try again.');
+    }
+  }, [canManage, catalogState.error, tab]);
 
   async function act(row, action) {
     setBusyId(row.id);
@@ -113,7 +113,7 @@ export default function ServiceRequestsPage() {
       if (action === 'complete') await serviceRequestsApi.complete(row.id);
       if (action === 'billed') await serviceRequestsApi.billed(row.id);
       toast('success', 'Updated');
-      await loadRequests(filter);
+      await requestState.refresh();
     } catch (err) {
       showError('Could not update', err.response?.data?.message || 'Try again.');
     } finally {
@@ -169,7 +169,7 @@ export default function ServiceRequestsPage() {
         toast('success', 'Service saved');
       }
       setModal(null);
-      await loadCatalog();
+      await catalogState.refresh();
     } catch (err) {
       setErrors(err.response?.data?.errors || [err.response?.data?.message || 'Could not save.']);
     } finally {

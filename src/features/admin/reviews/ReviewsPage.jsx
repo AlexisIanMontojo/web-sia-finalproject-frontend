@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { adminReviewsApi } from '../adminService';
 import { toast, showError } from '../../../lib/alerts';
 import StarRating from '../../../components/StarRating';
+import { useCachedFetch } from '../../../lib/cache';
 import '../../../layouts/Admin.css';
 
 const FILTERS = [
@@ -11,27 +12,23 @@ const FILTERS = [
   { value: 'featured', label: 'Featured' },
 ];
 
+const fetchReviews = async () => {
+  const { data } = await adminReviewsApi.list();
+  return Array.isArray(data?.data) ? data.data : [];
+};
+
 export default function ReviewsPage() {
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [busyId, setBusyId] = useState(null);
-
-  async function load() {
-    setLoading(true);
-    try {
-      const { data } = await adminReviewsApi.list();
-      setRows(Array.isArray(data?.data) ? data.data : []);
-    } catch (err) {
-      showError('Could not load reviews', err.response?.data?.message || 'Try again.');
-    } finally {
-      setLoading(false);
-    }
-  }
+  const reviewState = useCachedFetch('admin:reviews', fetchReviews);
+  const rows = useMemo(() => reviewState.data || [], [reviewState.data]);
+  const loading = reviewState.loading;
 
   useEffect(() => {
-    load();
-  }, []);
+    if (reviewState.error) {
+      showError('Could not load reviews', reviewState.error.response?.data?.message || 'Try again.');
+    }
+  }, [reviewState.error]);
 
   const shown = useMemo(() => {
     return rows.filter((r) => {
@@ -52,7 +49,9 @@ export default function ReviewsPage() {
     setBusyId(row.id);
     try {
       await adminReviewsApi.update(row.id, next);
-      setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, ...next } : r)));
+      reviewState.setData((prev) =>
+        (prev || []).map((r) => (r.id === row.id ? { ...r, ...next } : r))
+      );
       toast('success', 'Review updated');
     } catch (err) {
       showError('Could not update', err.response?.data?.message || 'Try again.');

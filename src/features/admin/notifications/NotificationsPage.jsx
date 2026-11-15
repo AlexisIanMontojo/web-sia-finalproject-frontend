@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { adminMessagesApi } from '../adminService';
 import { toast, showError } from '../../../lib/alerts';
+import { useCachedFetch } from '../../../lib/cache';
 import '../../../layouts/Admin.css';
 import '../../../layouts/Messages.css';
 
@@ -17,13 +18,13 @@ const EMAIL_TEXT = {
   not_configured: 'Email not set up',
 };
 
+const fetchAdminMessages = async (filter) => {
+  const { data } = await adminMessagesApi.list(filter);
+  return data;
+};
+
 export default function NotificationsPage() {
   const [filter, setFilter] = useState('all');
-  const [list, setList] = useState([]);
-  const [unread, setUnread] = useState(0);
-  const [awaiting, setAwaiting] = useState(0);
-  const [loading, setLoading] = useState(true);
-
   const [selectedId, setSelectedId] = useState(null);
   const [thread, setThread] = useState(null);
   const [threadLoading, setThreadLoading] = useState(false);
@@ -32,27 +33,31 @@ export default function NotificationsPage() {
   const [alsoEmail, setAlsoEmail] = useState(false);
   const [sending, setSending] = useState(false);
 
-  async function loadList(f = filter) {
-    setLoading(true);
-    try {
-      const { data } = await adminMessagesApi.list(f);
-      setList(data.data);
-      setUnread(data.unread);
-      setAwaiting(data.awaiting_reply);
-    } catch (err) {
-      showError('Could not load messages', err.response?.data?.message || 'Try again.');
-    } finally {
-      setLoading(false);
-    }
-  }
+  const fetcher = useCallback(() => fetchAdminMessages(filter), [filter]);
+  const messagesState = useCachedFetch(`admin:messages:${filter}`, fetcher);
+  const list = messagesState.data?.data || [];
+  const unread = messagesState.data?.unread || 0;
+  const awaiting = messagesState.data?.awaiting_reply || 0;
+  const loading = messagesState.loading;
 
   useEffect(() => {
-    loadList(filter);
-  }, [filter]);
+    if (messagesState.error) {
+      showError('Could not load messages', messagesState.error.response?.data?.message || 'Try again.');
+    }
+  }, [messagesState.error]);
 
   function markLocally(id, isRead) {
-    setList((prev) => prev.map((r) => (r.id === id ? { ...r, is_read: isRead } : r)));
-    setUnread((n) => Math.max(0, n + (isRead ? -1 : 1)));
+    messagesState.setData((current) => {
+      if (!current) return current;
+      const previous = current.data.find((row) => row.id === id);
+      const change = previous && previous.is_read !== isRead ? (isRead ? -1 : 1) : 0;
+
+      return {
+        ...current,
+        unread: Math.max(0, (current.unread || 0) + change),
+        data: current.data.map((row) => (row.id === id ? { ...row, is_read: isRead } : row)),
+      };
+    });
     setThread((t) => (t && t.id === id ? { ...t, is_read: isRead } : t));
   }
 
@@ -102,9 +107,13 @@ export default function NotificationsPage() {
       setReply('');
       setAlsoEmail(false);
 
-      const fresh = await adminMessagesApi.thread(thread.id);
-      setThread(fresh.data.data);
-      loadList(filter);
+      try {
+        const fresh = await adminMessagesApi.thread(thread.id);
+        setThread(fresh.data.data);
+      } catch (err) {
+        showError('Reply sent, but the conversation could not be refreshed', err.response?.data?.message || 'Try again.');
+      }
+      await messagesState.refresh();
     } catch (err) {
       showError('Could not send reply', err.response?.data?.message || 'Try again.');
     } finally {

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { paymentsAdminApi } from '../adminService';
 import { showError } from '../../../lib/alerts';
+import { useCachedFetch, invalidate } from '../../../lib/cache';
+import { clearApiCache } from '../../../services/api';
 import '../../../layouts/Admin.css';
 
 const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
@@ -18,42 +20,25 @@ const fetchPayments = async () => {
 };
 
 export default function PaymentsPage() {
-  const [rows, setRows] = useState([]);
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
-
-  async function load() {
-    setLoading(true);
-    try {
-      setRows(await fetchPayments());
-    } catch (err) {
-      showError('Could not load payments', err.response?.data?.message || 'Try again.');
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [refreshing, setRefreshing] = useState(false);
+  const paymentState = useCachedFetch('admin:payments', fetchPayments);
+  const rows = useMemo(() => paymentState.data || [], [paymentState.data]);
+  const loading = paymentState.loading;
 
   useEffect(() => {
-    let active = true;
+    if (paymentState.error) {
+      showError('Could not load payments', paymentState.error.response?.data?.message || 'Try again.');
+    }
+  }, [paymentState.error]);
 
-    fetchPayments()
-      .then((data) => {
-        if (active) setRows(data);
-      })
-      .catch((err) => {
-        if (active) {
-          showError('Could not load payments', err.response?.data?.message || 'Try again.');
-        }
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
+  function load() {
+    invalidate('admin:payments');
+    clearApiCache();
+    setRefreshing(true);
+    paymentState.refresh().finally(() => setRefreshing(false));
+  }
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -86,8 +71,8 @@ export default function PaymentsPage() {
             Review Xendit payment records and their linked reservations.
           </p>
         </div>
-        <button className="btn btn-primary" onClick={load} disabled={loading}>
-          {loading ? 'Loading…' : 'Refresh'}
+        <button className="btn btn-primary" onClick={load} disabled={loading || refreshing}>
+          {loading || refreshing ? 'Loading…' : 'Refresh'}
         </button>
       </div>
 
@@ -136,7 +121,7 @@ export default function PaymentsPage() {
       </div>
 
       <div className="table-card">
-        {loading ? (
+        {loading && !paymentState.data ? (
           <div className="table-empty">Loading payments…</div>
         ) : filteredRows.length === 0 ? (
           <div className="table-empty">No payments match this filter.</div>

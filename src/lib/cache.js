@@ -16,20 +16,28 @@ export function clearCache() {
  * `fetcher` must be a stable function defined outside the component.
  */
 export function useCachedFetch(key, fetcher) {
-  const [data, setDataState] = useState(() => (cache.has(key) ? cache.get(key) : null));
-  const [loading, setLoading] = useState(!cache.has(key));
-  const [error, setError] = useState(null);
+  const [state, setState] = useState(() => ({
+    key,
+    data: cache.has(key) ? cache.get(key) : null,
+    loading: !cache.has(key),
+    error: null,
+  }));
 
   const refresh = useCallback(async () => {
+    setState((current) => {
+      const data = current.key === key ? current.data : cache.has(key) ? cache.get(key) : null;
+      return { key, data, loading: data == null, error: null };
+    });
+
     try {
       const fresh = await fetcher();
       cache.set(key, fresh);
-      setDataState(fresh);
-      setError(null);
+      setState({ key, data: fresh, loading: false, error: null });
     } catch (err) {
-      setError(err);
-    } finally {
-      setLoading(false);
+      setState((current) => {
+        const data = current.key === key ? current.data : cache.has(key) ? cache.get(key) : null;
+        return { key, data, loading: false, error: err };
+      });
     }
   }, [key, fetcher]);
 
@@ -45,16 +53,21 @@ export function useCachedFetch(key, fetcher) {
   }, [refresh]);
 
   // Update the list in place after a save or delete, without a reload.
-  const setData = useCallback(
-    (updater) => {
-      setDataState((prev) => {
-        const next = typeof updater === 'function' ? updater(prev) : updater;
-        cache.set(key, next);
-        return next;
-      });
-    },
-    [key]
-  );
+  const setData = useCallback((updater) => {
+    setState((current) => {
+      const previous = current.key === key ? current.data : cache.has(key) ? cache.get(key) : null;
+      const next = typeof updater === 'function' ? updater(previous) : updater;
+      cache.set(key, next);
+      return { key, data: next, loading: false, error: null };
+    });
+  }, [key]);
 
-  return { data, loading, error, refresh, setData };
+  const current = state.key === key ? state : {
+    key,
+    data: cache.has(key) ? cache.get(key) : null,
+    loading: !cache.has(key),
+    error: null,
+  };
+
+  return { data: current.data, loading: current.loading, error: current.error, refresh, setData };
 }

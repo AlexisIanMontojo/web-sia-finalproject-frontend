@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { hotelAdminApi } from '../adminService';
 import { toast, showError } from '../../../lib/alerts';
 import LocationPicker from '../../../components/LocationPicker';
 import '../../../layouts/Admin.css';
-import { useCachedFetch, invalidate } from '../../../lib/cache';
+import { useCachedFetch } from '../../../lib/cache';
 
 const fetchHotelAdmin = async () => {
   const { data } = await hotelAdminApi.get();
@@ -41,14 +41,24 @@ export default function HotelAdminPage() {
 
   const [detailErrors, setDetailErrors] = useState([]);
   const [mapErrors, setMapErrors] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [savingDetails, setSavingDetails] = useState(false);
   const [savingMap, setSavingMap] = useState(false);
   const hotelState = useCachedFetch('admin:hotel', fetchHotelAdmin);
+  const hydratedHotel = useRef(false);
+
+  useEffect(() => {
+    if (hotelState.error) {
+      showError(
+        'Could not load hotel information',
+        hotelState.error.response?.data?.message || 'Try again.'
+      );
+    }
+  }, [hotelState.error]);
 
   useEffect(() => {
     const h = hotelState.data;
-    if (!h) return;
+    if (!h || hydratedHotel.current) return;
+    hydratedHotel.current = true;
     setDetails({
       name: h.name || '',
       address: h.address || '',
@@ -64,33 +74,6 @@ export default function HotelAdminPage() {
       lng: h.longitude != null ? String(h.longitude) : '',
     });
   }, [hotelState.data]);
-
-
-  useEffect(() => {
-    hotelAdminApi
-      .get()
-      .then(({ data }) => {
-        const h = data.hotel;
-        setDetails({
-          name: h.name || '',
-          address: h.address || '',
-          phone: h.phone || '',
-          email: h.email || '',
-          check_in_time: h.check_in_time || '',
-          check_out_time: h.check_out_time || '',
-          amenities: (h.amenities || []).join('\n'),
-          policies: (h.policies || []).join('\n'),
-        });
-        setCoords({
-          lat: h.latitude != null ? String(h.latitude) : '',
-          lng: h.longitude != null ? String(h.longitude) : '',
-        });
-      })
-      .catch((err) =>
-        showError('Could not load hotel information', err.response?.data?.message || 'Try again.')
-      )
-      .finally(() => setLoading(false));
-  }, []);
 
   const lat = parseCoord(coords.lat);
   const lng = parseCoord(coords.lng);
@@ -151,7 +134,7 @@ export default function HotelAdminPage() {
     }
   }
 
-  if (loading) {
+  if (hotelState.loading && !hotelState.data) {
     return <div className="admin-loading">Loading hotel information…</div>;
   }
 

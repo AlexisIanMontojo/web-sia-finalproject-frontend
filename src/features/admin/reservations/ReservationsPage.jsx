@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Swal from 'sweetalert2';
 import { reservationsApi } from '../adminService';
 import { toast, showError } from '../../../lib/alerts';
+import { useCachedFetch } from '../../../lib/cache';
 import '../../../layouts/Admin.css';
 
 const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
@@ -26,25 +27,24 @@ const STATUS_BADGE = {
 
 export default function ReservationsPage() {
   const [tab, setTab] = useState('pending');
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
 
-  async function load(status = tab) {
-    setLoading(true);
-    try {
-      const { data } = await reservationsApi.list(status);
-      setRows(Array.isArray(data?.data) ? data.data : []);
-    } catch (err) {
-      showError('Could not load reservations', err.response?.data?.message || 'Try again.');
-    } finally {
-      setLoading(false);
-    }
-  }
+  const fetchReservations = useCallback(async () => {
+    const { data } = await reservationsApi.list(tab);
+    return Array.isArray(data?.data) ? data.data : [];
+  }, [tab]);
+  const reservationState = useCachedFetch(`admin:reservations:${tab || 'all'}`, fetchReservations);
+  const rows = reservationState.data || [];
+  const loading = reservationState.loading;
 
   useEffect(() => {
-    load(tab);
-  }, [tab]);
+    if (reservationState.error) {
+      showError(
+        'Could not load reservations',
+        reservationState.error.response?.data?.message || 'Try again.'
+      );
+    }
+  }, [reservationState.error]);
 
   async function confirm(row) {
     const result = await Swal.fire({
@@ -61,7 +61,7 @@ export default function ReservationsPage() {
     try {
       await reservationsApi.confirm(row.id);
       toast('success', 'Reservation confirmed');
-      load();
+      await reservationState.refresh();
     } catch (err) {
       showError('Cannot confirm', err.response?.data?.message || 'Try again.');
     } finally {
@@ -88,7 +88,7 @@ export default function ReservationsPage() {
     try {
       await reservationsApi.reject(row.id, result.value.trim());
       toast('success', 'Reservation rejected');
-      load();
+      await reservationState.refresh();
     } catch (err) {
       showError('Cannot reject', err.response?.data?.message || 'Try again.');
     } finally {
