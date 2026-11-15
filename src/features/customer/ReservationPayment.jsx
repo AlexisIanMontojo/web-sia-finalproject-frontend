@@ -58,12 +58,12 @@ export default function ReservationPayment({ reservation, verifyExternalId = '' 
     setPaying(true);
     try {
       const { data } = await paymentsApi.reservationPayment(reservation.id, {
-        amount_type: info?.paid > 0 ? 'balance' : amountType,
+        amount_type: selectedAmountType,
         method,
       });
 
       if (data.provider === 'xendit' && data.invoice_url) {
-        window.location.href = data.invoice_url;
+        window.location.assign(data.invoice_url);
         return;
       }
 
@@ -102,9 +102,14 @@ export default function ReservationPayment({ reservation, verifyExternalId = '' 
     payment.status === 'pending' && payment.kind !== 'service'
   );
   const hasPaid = info.paid > 0;
-  const paymentAmount = hasPaid || amountType === 'full'
-    ? info.balance
-    : info.downpayment_due;
+  const selectedAmountType = hasPaid
+    ? 'balance'
+    : reservation.status === 'checked_out'
+      ? 'full'
+      : amountType;
+  const paymentAmount = selectedAmountType === 'downpayment'
+    ? info.downpayment_due
+    : info.balance;
 
   return (
     <div className="services-box">
@@ -148,7 +153,7 @@ export default function ReservationPayment({ reservation, verifyExternalId = '' 
           {pendingPayment.provider === 'xendit' && pendingPayment.invoice_url ? (
             <button
               className="btn-main"
-              onClick={() => { window.location.href = pendingPayment.invoice_url; }}
+              onClick={() => window.location.assign(pendingPayment.invoice_url)}
             >
               Continue Xendit {pendingPayment.kind === 'balance' ? 'balance payment' : 'payment'}{' '}
               {peso.format(pendingPayment.amount)}
@@ -164,7 +169,7 @@ export default function ReservationPayment({ reservation, verifyExternalId = '' 
 
       {!pendingPayment && info.open && info.balance > 0 && (
         <div className="stack">
-          {info.paid <= 0 ? (
+          {!hasPaid && reservation.status !== 'checked_out' ? (
             <fieldset className="payment-choice">
               <legend>Payment amount</legend>
               <label>
@@ -192,7 +197,8 @@ export default function ReservationPayment({ reservation, verifyExternalId = '' 
             </fieldset>
           ) : (
             <p className="muted">
-              Downpayment received. Remaining balance: {peso.format(info.balance)}
+              {hasPaid ? 'Downpayment received. ' : ''}
+              Remaining balance: {peso.format(info.balance)}
             </p>
           )}
 
@@ -246,7 +252,7 @@ export default function ReservationPayment({ reservation, verifyExternalId = '' 
 
       <p className="muted">
         Xendit payments are verified automatically. Cash is marked paid by the hotel after it is received.
-        The hotel still confirms your booking.
+        The hotel confirms your reservation.
       </p>
     </div>
   );
