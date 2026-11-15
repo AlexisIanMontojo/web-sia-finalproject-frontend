@@ -21,6 +21,7 @@ export default function Register() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [verificationEmail, setVerificationEmail] = useState('');
+  const [verificationChallenge, setVerificationChallenge] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -95,6 +96,7 @@ export default function Register() {
     setLoading(true);
     try {
       const { data } = await googleSignup(credentialResponse.credential);
+      setVerificationChallenge(data.challenge);
       setVerificationEmail(data.email);
       setSuccess(data.message || 'A verification code has been sent to your email.');
     } catch (err) {
@@ -115,7 +117,7 @@ export default function Register() {
 
     try {
       const { data } = await verifyEmailCode({
-        email: verificationEmail,
+        challenge: verificationChallenge,
         code: verificationCode.trim(),
       });
       loginWithTokens(data);
