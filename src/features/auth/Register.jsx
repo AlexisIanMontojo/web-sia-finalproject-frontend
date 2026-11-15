@@ -6,6 +6,20 @@ import { googleSignup, register, verifyEmailCode } from './authService';
 import GoogleSignInButton from './components/GoogleSignInButton';
 import './Auth.css';
 
+function getRequestErrorMessage(error, fallback) {
+  const response = error?.response?.data;
+  if (typeof response?.message === 'string') {
+    return response.message;
+  }
+  if (typeof response?.error === 'string') {
+    return response.error;
+  }
+  if (typeof response?.error?.message === 'string') {
+    return response.error.message;
+  }
+  return fallback;
+}
+
 export default function Register() {
   const navigate = useNavigate();
   const { loginWithTokens } = useAuth();
@@ -75,11 +89,10 @@ export default function Register() {
         confirmPassword: '',
       });
     } catch (err) {
-      setError(
-        err.response?.data?.message ||
-        err.response?.data?.error ||
+      setError(getRequestErrorMessage(
+        err,
         'Unable to register. Please check your connection and try again.'
-      );
+      ));
     } finally {
       setLoading(false);
     }
@@ -101,11 +114,10 @@ export default function Register() {
       setVerificationEmail(data.email);
       setSuccess(data.message || 'A verification code has been sent to your email.');
     } catch (err) {
-      setError(
-        err.response?.data?.message ||
-        err.response?.data?.error ||
+      setError(getRequestErrorMessage(
+        err,
         'Unable to continue with Google. Please try again.'
-      );
+      ));
     } finally {
       setLoading(false);
     }
@@ -125,11 +137,10 @@ export default function Register() {
       loginWithTokens(data);
       navigate('/rooms', { replace: true });
     } catch (err) {
-      setError(
-        err.response?.data?.message ||
-        err.response?.data?.error ||
+      setError(getRequestErrorMessage(
+        err,
         'Unable to verify your email. Please check the code and try again.'
-      );
+      ));
     } finally {
       setLoading(false);
     }
