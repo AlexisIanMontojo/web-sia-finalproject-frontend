@@ -58,7 +58,7 @@ export default function ReservationPayment({ reservation, verifyExternalId = '' 
     setPaying(true);
     try {
       const { data } = await paymentsApi.reservationPayment(reservation.id, {
-        amount_type: info?.paid > 0 ? 'full' : amountType,
+        amount_type: info?.paid > 0 ? 'balance' : amountType,
         method,
       });
 
@@ -101,6 +101,10 @@ export default function ReservationPayment({ reservation, verifyExternalId = '' 
   const pendingPayment = payments.find((payment) =>
     payment.status === 'pending' && payment.kind !== 'service'
   );
+  const hasPaid = info.paid > 0;
+  const paymentAmount = hasPaid || amountType === 'full'
+    ? info.balance
+    : info.downpayment_due;
 
   return (
     <div className="services-box">
@@ -146,11 +150,13 @@ export default function ReservationPayment({ reservation, verifyExternalId = '' 
               className="btn-main"
               onClick={() => { window.location.href = pendingPayment.invoice_url; }}
             >
-              Continue Xendit payment {peso.format(pendingPayment.amount)}
+              Continue Xendit {pendingPayment.kind === 'balance' ? 'balance payment' : 'payment'}{' '}
+              {peso.format(pendingPayment.amount)}
             </button>
           ) : (
             <p className="muted">
-              Cash payment is awaiting confirmation. Please pay the hotel in person.
+              Cash {pendingPayment.kind === 'balance' ? 'balance payment' : 'payment'} of{' '}
+              {peso.format(pendingPayment.amount)} is awaiting confirmation. Please pay the hotel in person.
             </p>
           )}
         </div>
@@ -185,7 +191,9 @@ export default function ReservationPayment({ reservation, verifyExternalId = '' 
               </label>
             </fieldset>
           ) : (
-            <p className="muted">Remaining balance: {peso.format(info.balance)}</p>
+            <p className="muted">
+              Downpayment received. Remaining balance: {peso.format(info.balance)}
+            </p>
           )}
 
           <fieldset className="payment-choice">
@@ -217,7 +225,13 @@ export default function ReservationPayment({ reservation, verifyExternalId = '' 
           <button className="btn-main" disabled={paying} onClick={pay}>
             {paying
               ? method === 'xendit' ? 'Opening Xendit…' : 'Requesting cash payment…'
-              : method === 'xendit' ? 'Continue to Xendit' : 'Request cash payment'}
+              : hasPaid
+                ? method === 'xendit'
+                  ? `Pay remaining balance ${peso.format(paymentAmount)} with Xendit`
+                  : `Request cash payment for ${peso.format(paymentAmount)} balance`
+                : method === 'xendit'
+                  ? `Continue to Xendit · ${peso.format(paymentAmount)}`
+                  : `Request cash payment · ${peso.format(paymentAmount)}`}
           </button>
         </div>
       )}
