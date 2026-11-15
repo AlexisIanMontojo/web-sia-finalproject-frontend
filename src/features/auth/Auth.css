@@ -76,6 +76,33 @@
   gap: 18px;
 }
 
+.google-sign-in-button {
+  display: flex;
+  justify-content: center;
+  min-height: 40px;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  color: #737b7a;
+  font-size: 0.85rem;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #d9ded9;
+}
+
+.auth-verification-prompt {
+  margin: 0;
+}
+
 .auth-field {
   display: flex;
   flex-direction: column;

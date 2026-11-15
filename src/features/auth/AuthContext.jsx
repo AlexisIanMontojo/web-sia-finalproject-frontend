@@ -54,14 +54,18 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener('auth:expired', clearSession);
   }, [clearSession]);
 
-  const login = useCallback(async (credentials) => {
-    const { data } = await authService.login(credentials);
+  const loginWithTokens = useCallback((data) => {
     setAccessToken(data.access_token);
     sessionStorage.setItem('refresh_token', data.refresh_token);
     setUser(data.user);
     setStatus('authenticated');
     return data.user;
   }, []);
+
+  const login = useCallback(async (credentials) => {
+    const { data } = await authService.login(credentials);
+    return loginWithTokens(data);
+  }, [loginWithTokens]);
 
   const logout = useCallback(async () => {
     try {
@@ -73,8 +77,8 @@ export function AuthProvider({ children }) {
   }, [clearSession]);
 
   const value = useMemo(
-    () => ({ user, status, login, logout }),
-    [user, status, login, logout]
+    () => ({ user, status, login, loginWithTokens, logout }),
+    [user, status, login, loginWithTokens, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
