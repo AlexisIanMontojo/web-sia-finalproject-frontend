@@ -157,7 +157,13 @@ export default function PaymentsPage() {
               {filteredRows.map((row) => (
                 <tr key={row.id}>
                   <td>
-                    <strong>{row.kind === 'downpayment' ? 'Downpayment' : row.kind}</strong>
+                    <strong>
+                      {row.kind === 'downpayment'
+                        ? 'Downpayment'
+                        : row.kind === 'service'
+                          ? 'Extra services'
+                          : row.kind}
+                    </strong>
                     <div className="muted">{row.provider} · {row.external_id}</div>
                   </td>
                   <td>

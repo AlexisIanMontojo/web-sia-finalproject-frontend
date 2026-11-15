@@ -280,6 +280,13 @@
 }
 .toolbar .input { width: auto; min-width: 180px; }
 .toolbar .search { min-width: 260px; }
+.report-date-field {
+  display: grid;
+  gap: 4px;
+  color: #5b6b64;
+  font-size: 0.82rem;
+}
+.report-date-field .input { min-width: 190px; }
 
 /* ============ Two-column form row ============ */
 .form-row {

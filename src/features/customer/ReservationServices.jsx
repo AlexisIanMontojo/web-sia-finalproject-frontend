@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
-import { servicesApi } from './customerService';
+import { paymentsApi, servicesApi } from './customerService';
 import { toast, showError } from '../../lib/alerts';
 import '../../layouts/Customer.css';
 import '../../layouts/Messages.css';
@@ -72,6 +72,7 @@ export default function ReservationServices({ reservation }) {
 
   const [catalog, setCatalog] = useState([]);
   const [requests, setRequests] = useState([]);
+  const [pendingPayment, setPendingPayment] = useState(null);
   const [total, setTotal] = useState(0);
   const [stayOpen, setStayOpen] = useState(false);
 
@@ -80,8 +81,9 @@ export default function ReservationServices({ reservation }) {
   const [errors, setErrors] = useState([]);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState(null);
+  const [paying, setPaying] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [cat, mine] = await Promise.all([
@@ -92,23 +94,35 @@ export default function ReservationServices({ reservation }) {
       setRequests(mine.data.data);
       setTotal(mine.data.total);
       setStayOpen(mine.data.open);
+      setPendingPayment(mine.data.pending_service_payment || null);
       setLoaded(true);
     } catch (err) {
       showError('Could not load services', err.response?.data?.message || 'Try again.');
     } finally {
       setLoading(false);
     }
-  }
+  }, [reservation.id]);
 
-  // Load once, the first time the panel opens.
   useEffect(() => {
-    if (open && !loaded) load();
-  }, [open, loaded]);
+    if (!open || loaded) return undefined;
+
+    let active = true;
+    Promise.resolve().then(() => {
+      if (active) load();
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [open, loaded, load]);
 
   const service = useMemo(
     () => catalog.find((s) => s.id === pickedId) || null,
     [catalog, pickedId]
   );
+  const payableTotal = requests
+    .filter((request) => request.status === 'completed' && request.billing_status === 'unpaid')
+    .reduce((sum, request) => sum + Number(request.total_amount || 0), 0);
 
   const limits = service ? limitsFor(service.unit) : LIMITS.default;
 
@@ -195,6 +209,23 @@ export default function ReservationServices({ reservation }) {
     }
   }
 
+  async function payServices() {
+    setPaying(true);
+    try {
+      const { data } = await paymentsApi.servicePayment(reservation.id);
+      window.location.href = data.invoice_url;
+    } catch (err) {
+      showError('Cannot start payment', err.response?.data?.message || 'Try again.');
+      setPaying(false);
+    }
+  }
+
+  function continuePendingPayment() {
+    if (pendingPayment?.invoice_url) {
+      window.location.href = pendingPayment.invoice_url;
+    }
+  }
+
   return (
     <div className="services-box">
       <button
@@ -244,6 +275,22 @@ export default function ReservationServices({ reservation }) {
                   )}
                 </div>
               ))}
+              {pendingPayment && (
+                <div className="map-actions">
+                  <button className="btn-main" onClick={continuePendingPayment}>
+                    Continue Xendit payment {peso.format(pendingPayment.amount)}
+                  </button>
+                </div>
+              )}
+              {!pendingPayment && payableTotal > 0 && (
+                <div className="map-actions">
+                  <button className="btn-main" disabled={paying} onClick={payServices}>
+                    {paying
+                      ? 'Opening Xendit…'
+                      : `Pay completed services ${peso.format(payableTotal)}`}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -354,7 +401,8 @@ export default function ReservationServices({ reservation }) {
                   </div>
 
                   <p className="muted">
-                    The hotel confirms this request. The charge is then added to your bill.
+                    The hotel confirms and completes this request. You can then pay the charge
+                    securely through Xendit.
                   </p>
 
                   <div>

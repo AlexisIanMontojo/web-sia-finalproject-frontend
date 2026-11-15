@@ -2,6 +2,9 @@ import api from '../../services/api';
 
 export const getDashboardStats = () => api.get('/api/admin/dashboard/stats');
 export const getDashboardCharts = () => api.get('/api/admin/dashboard/charts');
+export const reportsApi = {
+  get: (from, to) => api.get('/api/admin/reports', { params: { from, to } }),
+};
 
 export const categoriesApi = {
   list: () => api.get('/api/admin/categories'),
@@ -11,7 +14,7 @@ export const categoriesApi = {
 };
 
 export const roomsApi = {
-  list: () => api.get('/api/admin/rooms'),
+  list: () => api.get('/api/admin/rooms', { cache: 'memory' }),
   create: (data) => api.post('/api/admin/rooms', data),
   update: (id, data) => api.put(`/api/admin/rooms/${id}`, data),
   remove: (id) => api.delete(`/api/admin/rooms/${id}`),
@@ -25,7 +28,7 @@ export const roomsApi = {
 };
 
 export const pricingApi = {
-  list: () => api.get('/api/admin/pricing'),
+  list: () => api.get('/api/admin/pricing', { cache: 'memory' }),
   create: (data) => api.post('/api/admin/pricing', data),
   update: (id, data) => api.put(`/api/admin/pricing/${id}`, data),
   remove: (id) => api.delete(`/api/admin/pricing/${id}`),

@@ -22,7 +22,6 @@ import ContactPage from '../features/customer/ContactPage';
 import AdminLogin from '../features/admin/AdminLogin';
 import AdminLayout from '../layouts/AdminLayout';
 import AdminDashboard from '../features/admin/AdminDashboard';
-import AdminPlaceholder from '../features/admin/AdminPlaceholder';
 import StaffPage from '../features/admin/staff/StaffPage';
 import HotelAdminPage from '../features/admin/hotel/HotelAdminPage';
 import CategoriesPage from '../features/admin/categories/CategoriesPage';
@@ -36,6 +35,7 @@ import NotificationsPage from '../features/admin/notifications/NotificationsPage
 import ReviewsPage from '../features/admin/reviews/ReviewsPage';
 import ServiceRequestsPage from '../features/admin/services/ServiceRequestsPage';
 import PaymentsPage from '../features/admin/payments/PaymentsPage';
+import ReportsPage from '../features/admin/reports/ReportsPage';
 
 export default function AppRoutes() {
   return (
@@ -78,7 +78,7 @@ export default function AppRoutes() {
               <Route path="/admin/pricing" element={<PricingPage />} />
               <Route path="/admin/payments" element={<PaymentsPage />} />
               <Route path="/admin/reviews" element={<ReviewsPage />} />
-              <Route path="/admin/reports" element={<AdminPlaceholder title="Reports" />} />
+              <Route path="/admin/reports" element={<ReportsPage />} />
             </Route>
 
             {/* Admin only */}

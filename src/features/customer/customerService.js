@@ -75,4 +75,5 @@ export const paymentsApi = {
     params: externalId ? { external_id: externalId } : {},
   }),
   downpayment: (id) => api.post(`/api/customer/reservations/${id}/downpayment`),
+  servicePayment: (id) => api.post(`/api/customer/reservations/${id}/service-payment`),
 };

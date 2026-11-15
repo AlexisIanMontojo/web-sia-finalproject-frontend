@@ -97,7 +97,13 @@ export default function ReservationPayment({ reservation, verifyExternalId = '' 
         <div className="stack">
           {payments.map((p) => (
             <div className="service-row" key={p.id}>
-              <span>{p.kind === 'downpayment' ? 'Downpayment' : 'Balance'}</span>
+              <span>
+                {p.kind === 'downpayment'
+                  ? 'Downpayment'
+                  : p.kind === 'service'
+                    ? 'Extra services'
+                    : 'Balance'}
+              </span>
               <span>{peso.format(p.amount)}</span>
               <span className={`tag ${STATUS_TAG[p.status] || ''}`}>
                 {STATUS_TEXT[p.status] || p.status}

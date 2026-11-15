@@ -7,6 +7,10 @@ export function invalidate(key) {
   cache.delete(key);
 }
 
+export function clearCache() {
+  cache.clear();
+}
+
 /**
  * Returns cached data immediately (if any), then refreshes it in the background.
  * `fetcher` must be a stable function defined outside the component.
@@ -30,7 +34,14 @@ export function useCachedFetch(key, fetcher) {
   }, [key, fetcher]);
 
   useEffect(() => {
-    refresh();
+    let active = true;
+    Promise.resolve().then(() => {
+      if (active) refresh();
+    });
+
+    return () => {
+      active = false;
+    };
   }, [refresh]);
 
   // Update the list in place after a save or delete, without a reload.

@@ -146,7 +146,10 @@ export default function MyReservationsPage() {
             )}
           </div>
 
-          {['pending', 'confirmed'].includes(r.status) && (
+          {(
+            ['pending', 'confirmed'].includes(r.status) ||
+            (returnedReservationId && String(r.id) === returnedReservationId)
+          ) && (
             <ReservationPayment
               reservation={r}
               verifyExternalId={
