@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
 import { paymentsApi, servicesApi } from './customerService';
 import { toast, showError } from '../../lib/alerts';
+import { useCachedFetch } from '../../lib/cache';
 import '../../layouts/Customer.css';
 import '../../layouts/Messages.css';
 
@@ -65,56 +66,53 @@ function formatQuantity(q, unit) {
 
 const EMPTY_FORM = { quantity: '', scheduled_at: '', notes: '' };
 
+const fetchServiceCatalog = async () => {
+  const { data } = await servicesApi.catalog();
+  return data.data;
+};
+
+const fetchReservationServices = async (id, force = false) => {
+  const { data } = await servicesApi.forReservation(id, force);
+  return data;
+};
+
 export default function ReservationServices({ reservation }) {
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-
-  const [catalog, setCatalog] = useState([]);
-  const [requests, setRequests] = useState([]);
-  const [pendingPayment, setPendingPayment] = useState(null);
-  const [total, setTotal] = useState(0);
-  const [stayOpen, setStayOpen] = useState(false);
 
   const [pickedId, setPickedId] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState([]);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState(null);
-  const [paying, setPaying] = useState(false);
+  const [paying, setPaying] = useState('');
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [cat, mine] = await Promise.all([
-        servicesApi.catalog(),
-        servicesApi.forReservation(reservation.id),
-      ]);
-      setCatalog(cat.data.data);
-      setRequests(mine.data.data);
-      setTotal(mine.data.total);
-      setStayOpen(mine.data.open);
-      setPendingPayment(mine.data.pending_service_payment || null);
-      setLoaded(true);
-    } catch (err) {
-      showError('Could not load services', err.response?.data?.message || 'Try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [reservation.id]);
+  const requestFetcher = useCallback(() => fetchReservationServices(reservation.id), [reservation.id]);
+  const catalogState = useCachedFetch('customer:service-catalog', fetchServiceCatalog, { enabled: open });
+  const requestState = useCachedFetch(
+    `customer:reservation-services:${reservation.id}`,
+    requestFetcher,
+    { enabled: open }
+  );
+  const catalog = useMemo(() => catalogState.data || [], [catalogState.data]);
+  const serviceData = requestState.data;
+  const requests = serviceData?.data || [];
+  const total = serviceData?.total || 0;
+  const stayOpen = serviceData?.open || false;
+  const pendingPayment = serviceData?.pending_service_payment || null;
+  const loaded = Boolean(catalogState.data && serviceData);
+  const loading = open && !loaded && (catalogState.loading || requestState.loading);
 
   useEffect(() => {
-    if (!open || loaded) return undefined;
+    if (open && catalogState.error) {
+      showError('Could not load services', catalogState.error.response?.data?.message || 'Try again.');
+    }
+  }, [catalogState.error, open]);
 
-    let active = true;
-    Promise.resolve().then(() => {
-      if (active) load();
-    });
-
-    return () => {
-      active = false;
-    };
-  }, [open, loaded, load]);
+  useEffect(() => {
+    if (open && requestState.error) {
+      showError('Could not load your service requests', requestState.error.response?.data?.message || 'Try again.');
+    }
+  }, [open, requestState.error]);
 
   const service = useMemo(
     () => catalog.find((s) => s.id === pickedId) || null,
@@ -144,6 +142,10 @@ export default function ReservationServices({ reservation }) {
     !saving &&
     (service.unit === 'per_stay' || (form.quantity !== '' && Number(form.quantity) >= limits.min)) &&
     (!service.requires_schedule || form.scheduled_at !== '');
+
+  function retainCatalogCache() {
+    catalogState.setData(catalog);
+  }
 
   function pick(s) {
     setPickedId(s.id);
@@ -176,7 +178,8 @@ export default function ReservationServices({ reservation }) {
       });
       toast('success', 'Request sent. The hotel will confirm it.');
       clearPick();
-      await load();
+      retainCatalogCache();
+      await requestState.refresh();
     } catch (err) {
       setErrors(
         err.response?.data?.errors || [err.response?.data?.message || 'Could not add this service.']
@@ -201,7 +204,8 @@ export default function ReservationServices({ reservation }) {
     try {
       await servicesApi.cancel(row.id);
       toast('success', 'Request cancelled');
-      await load();
+      retainCatalogCache();
+      await requestState.refresh();
     } catch (err) {
       showError('Cannot cancel', err.response?.data?.message || 'Try again.');
     } finally {
@@ -209,20 +213,44 @@ export default function ReservationServices({ reservation }) {
     }
   }
 
-  async function payServices() {
-    setPaying(true);
+  async function payServices(method) {
+    setPaying(method);
     try {
-      const { data } = await paymentsApi.servicePayment(reservation.id);
-      window.location.href = data.invoice_url;
+      const { data } = await paymentsApi.servicePayment(reservation.id, method);
+      if (data.provider === 'xendit' && data.invoice_url) {
+        retainCatalogCache();
+        window.location.href = data.invoice_url;
+        return;
+      }
+
+      toast('success', 'Cash payment requested. Please pay the hotel in person.');
+      retainCatalogCache();
+      try {
+        requestState.setData(await fetchReservationServices(reservation.id, true));
+      } catch (err) {
+        showError(
+          'Cash payment was requested, but the service status could not be refreshed',
+          err.response?.data?.message || 'Reopen this section to check again.'
+        );
+      }
     } catch (err) {
       showError('Cannot start payment', err.response?.data?.message || 'Try again.');
-      setPaying(false);
+    } finally {
+      setPaying('');
     }
   }
 
   function continuePendingPayment() {
-    if (pendingPayment?.invoice_url) {
+    if (pendingPayment?.provider === 'xendit' && pendingPayment.invoice_url) {
       window.location.href = pendingPayment.invoice_url;
+    }
+  }
+
+  async function refreshServiceStatus() {
+    try {
+      requestState.setData(await fetchReservationServices(reservation.id, true));
+    } catch (err) {
+      showError('Could not refresh service payment status', err.response?.data?.message || 'Try again.');
     }
   }
 
@@ -238,7 +266,7 @@ export default function ReservationServices({ reservation }) {
 
       {open && (
         <div className="stack">
-          {loading && !loaded && <p className="muted">Loading services…</p>}
+          {loading && <p className="muted">Loading services…</p>}
 
           {loaded && requests.length > 0 && (
             <div className="service-list">
@@ -275,19 +303,44 @@ export default function ReservationServices({ reservation }) {
                   )}
                 </div>
               ))}
-              {pendingPayment && (
+              {pendingPayment?.provider === 'xendit' && (
                 <div className="map-actions">
                   <button className="btn-main" onClick={continuePendingPayment}>
                     Continue Xendit payment {peso.format(pendingPayment.amount)}
                   </button>
                 </div>
               )}
+              {pendingPayment?.provider === 'cash' && (
+                <>
+                  <p className="muted">
+                    Cash payment is awaiting confirmation. Please pay the hotel in person.
+                  </p>
+                  <button
+                    className="btn-outline"
+                    disabled={Boolean(paying)}
+                    onClick={refreshServiceStatus}
+                  >
+                    Refresh payment status
+                  </button>
+                </>
+              )}
               {!pendingPayment && payableTotal > 0 && (
                 <div className="map-actions">
-                  <button className="btn-main" disabled={paying} onClick={payServices}>
-                    {paying
+                  <button
+                    className="btn-main"
+                    disabled={Boolean(paying)}
+                    onClick={() => payServices('xendit')}
+                  >
+                    {paying === 'xendit'
                       ? 'Opening Xendit…'
-                      : `Pay completed services ${peso.format(payableTotal)}`}
+                      : `Pay with Xendit · ${peso.format(payableTotal)}`}
+                  </button>
+                  <button
+                    className="btn-outline"
+                    disabled={Boolean(paying)}
+                    onClick={() => payServices('cash')}
+                  >
+                    {paying === 'cash' ? 'Requesting…' : 'Pay in cash'}
                   </button>
                 </div>
               )}
@@ -402,7 +455,7 @@ export default function ReservationServices({ reservation }) {
 
                   <p className="muted">
                     The hotel confirms and completes this request. You can then pay the charge
-                    securely through Xendit.
+                    through Xendit or in cash at the hotel.
                   </p>
 
                   <div>

@@ -15,7 +15,7 @@ export function clearCache() {
  * Returns cached data immediately (if any), then refreshes it in the background.
  * `fetcher` must be a stable function defined outside the component.
  */
-export function useCachedFetch(key, fetcher) {
+export function useCachedFetch(key, fetcher, { enabled = true } = {}) {
   const [state, setState] = useState(() => ({
     key,
     data: cache.has(key) ? cache.get(key) : null,
@@ -42,6 +42,8 @@ export function useCachedFetch(key, fetcher) {
   }, [key, fetcher]);
 
   useEffect(() => {
+    if (!enabled) return undefined;
+
     let active = true;
     Promise.resolve().then(() => {
       if (active) refresh();
@@ -50,7 +52,7 @@ export function useCachedFetch(key, fetcher) {
     return () => {
       active = false;
     };
-  }, [refresh]);
+  }, [enabled, refresh]);
 
   // Update the list in place after a save or delete, without a reload.
   const setData = useCallback((updater) => {

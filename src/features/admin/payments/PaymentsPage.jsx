@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { paymentsAdminApi } from '../adminService';
-import { showError } from '../../../lib/alerts';
+import { showError, toast } from '../../../lib/alerts';
 import { useCachedFetch, invalidate } from '../../../lib/cache';
 import { clearApiCache } from '../../../services/api';
 import '../../../layouts/Admin.css';
@@ -14,6 +14,13 @@ const STATUS_BADGE = {
   failed: 'badge-red',
 };
 
+const PAYMENT_LABEL = {
+  downpayment: 'Downpayment',
+  full: 'Full payment',
+  balance: 'Balance payment',
+  service: 'Extra services',
+};
+
 const fetchPayments = async () => {
   const { data } = await paymentsAdminApi.list();
   return Array.isArray(data?.data) ? data.data : [];
@@ -23,6 +30,7 @@ export default function PaymentsPage() {
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [busyId, setBusyId] = useState(null);
   const paymentState = useCachedFetch('admin:payments', fetchPayments);
   const rows = useMemo(() => paymentState.data || [], [paymentState.data]);
   const loading = paymentState.loading;
@@ -38,6 +46,19 @@ export default function PaymentsPage() {
     clearApiCache();
     setRefreshing(true);
     paymentState.refresh().finally(() => setRefreshing(false));
+  }
+
+  async function markCashPaid(row) {
+    setBusyId(row.id);
+    try {
+      await paymentsAdminApi.markCashPaid(row.id);
+      toast('success', 'Cash payment recorded as paid');
+      load();
+    } catch (err) {
+      showError('Could not record cash payment', err.response?.data?.message || 'Try again.');
+    } finally {
+      setBusyId(null);
+    }
   }
 
   const filteredRows = useMemo(() => {
@@ -68,7 +89,7 @@ export default function PaymentsPage() {
         <div>
           <h1 className="admin-page-title">Payments &amp; Billing</h1>
           <p className="admin-page-subtitle">
-            Review Xendit payment records and their linked reservations.
+            Review Xendit and cash payments, and confirm cash received by the hotel.
           </p>
         </div>
         <button className="btn btn-primary" onClick={load} disabled={loading || refreshing}>
@@ -85,7 +106,7 @@ export default function PaymentsPage() {
         </div>
         <div className="stat-card tone-teal">
           <div>
-            <p className="stat-label">Verified paid</p>
+            <p className="stat-label">Paid total</p>
             <p className="stat-value">{peso.format(paidTotal)}</p>
           </div>
         </div>
@@ -136,6 +157,7 @@ export default function PaymentsPage() {
                 <th>Amount</th>
                 <th>Status</th>
                 <th>Paid at</th>
+                <th className="text-right">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -143,11 +165,7 @@ export default function PaymentsPage() {
                 <tr key={row.id}>
                   <td>
                     <strong>
-                      {row.kind === 'downpayment'
-                        ? 'Downpayment'
-                        : row.kind === 'service'
-                          ? 'Extra services'
-                          : row.kind}
+                      {PAYMENT_LABEL[row.kind] || row.kind}
                     </strong>
                     <div className="muted">{row.provider} · {row.external_id}</div>
                   </td>
@@ -172,6 +190,17 @@ export default function PaymentsPage() {
                     </span>
                   </td>
                   <td>{row.paid_at || '—'}</td>
+                  <td className="text-right">
+                    {row.provider === 'cash' && row.status === 'pending' && (
+                      <button
+                        className="btn btn-primary"
+                        disabled={busyId === row.id}
+                        onClick={() => markCashPaid(row)}
+                      >
+                        {busyId === row.id ? 'Saving…' : 'Mark cash received'}
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

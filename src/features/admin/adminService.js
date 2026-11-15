@@ -100,4 +100,5 @@ export const serviceCatalogApi = {
 
 export const paymentsAdminApi = {
   list: () => api.get('/api/admin/payments'),
+  markCashPaid: (id) => api.post(`/api/admin/payments/${id}/cash-paid`),
 };

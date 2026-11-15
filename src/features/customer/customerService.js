@@ -64,16 +64,25 @@ export const messagesApi = {
 };
 
 export const servicesApi = {
-  catalog: () => api.get('/api/customer/services'),
-  forReservation: (id) => api.get(`/api/customer/reservations/${id}/services`),
+  catalog: () => api.get('/api/customer/services', { cache: 'memory' }),
+  forReservation: (id, force = false) => api.get(
+    `/api/customer/reservations/${id}/services`,
+    { cache: force ? false : 'memory' }
+  ),
   add: (id, data) => api.post(`/api/customer/reservations/${id}/services`, data),
   cancel: (id) => api.post(`/api/customer/reservation-services/${id}/cancel`),
 };
 
 export const paymentsApi = {
-  list: (id, externalId = '') => api.get(`/api/customer/reservations/${id}/payments`, {
-    params: externalId ? { external_id: externalId } : {},
-  }),
+  list: (id, externalId = '', force = false) => api.get(
+    `/api/customer/reservations/${id}/payments`,
+    {
+      params: externalId ? { external_id: externalId } : {},
+      cache: force ? false : 'memory',
+    }
+  ),
+  reservationPayment: (id, data) => api.post(`/api/customer/reservations/${id}/payment`, data),
   downpayment: (id) => api.post(`/api/customer/reservations/${id}/downpayment`),
-  servicePayment: (id) => api.post(`/api/customer/reservations/${id}/service-payment`),
+  servicePayment: (id, method) =>
+    api.post(`/api/customer/reservations/${id}/service-payment`, { method }),
 };

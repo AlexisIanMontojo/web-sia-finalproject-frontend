@@ -38,8 +38,13 @@ function responseCacheTtl(config) {
   const url = (config.url || '').split('?')[0];
   if (
     /\/api\/(public\/availability|public\/search|admin\/availability)(\/|$)/.test(url) ||
-    /\/api\/customer\/reservations\/\d+\/(payments|services)$/.test(url) ||
     /\/api\/customer\/messages\/unread-count$/.test(url)
+  ) {
+    return 0;
+  }
+  if (
+    /\/api\/customer\/reservations\/\d+\/payments$/.test(url) &&
+    config.params?.external_id
   ) {
     return 0;
   }

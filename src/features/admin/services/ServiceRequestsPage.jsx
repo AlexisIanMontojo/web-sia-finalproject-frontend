@@ -267,6 +267,11 @@ export default function ServiceRequestsPage() {
                         <span className={`tag ${r.billing_status === 'paid' ? 'tag-ok' : ''}`}>
                           {r.billing_status}
                         </span>
+                        {r.pending_payment_provider && (
+                          <div className="muted">
+                            {r.pending_payment_provider === 'cash' ? 'Cash' : 'Xendit'} payment pending
+                          </div>
+                        )}
                       </td>
                       <td className="text-right">
                         {r.status === 'requested' && (
@@ -287,7 +292,7 @@ export default function ServiceRequestsPage() {
                             Complete
                           </button>
                         )}
-                        {canManage && r.status === 'completed' && r.billing_status === 'unpaid' && (
+                        {canManage && r.status === 'completed' && r.billing_status === 'unpaid' && !r.pending_payment_provider && (
                           <button
                             className="btn btn-primary"
                             disabled={busyId === r.id}
