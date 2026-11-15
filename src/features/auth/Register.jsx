@@ -77,6 +77,7 @@ export default function Register() {
     } catch (err) {
       setError(
         err.response?.data?.message ||
+        err.response?.data?.error ||
         'Unable to register. Please check your connection and try again.'
       );
     } finally {
@@ -102,6 +103,7 @@ export default function Register() {
     } catch (err) {
       setError(
         err.response?.data?.message ||
+        err.response?.data?.error ||
         'Unable to continue with Google. Please try again.'
       );
     } finally {
@@ -125,6 +127,7 @@ export default function Register() {
     } catch (err) {
       setError(
         err.response?.data?.message ||
+        err.response?.data?.error ||
         'Unable to verify your email. Please check the code and try again.'
       );
     } finally {
