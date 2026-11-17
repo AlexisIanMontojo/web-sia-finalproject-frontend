@@ -105,8 +105,32 @@ api.interceptors.request.use((config) => {
   if (accessToken) {
     config.headers.Authorization = `Bearer ${accessToken}`;
   }
+  config.performanceStartedAt = globalThis.performance?.now?.() ?? Date.now();
   return config;
 });
+
+function recordApiPerformance(config, status) {
+  const startedAt = config?.performanceStartedAt;
+  if (!Number.isFinite(startedAt)) return;
+
+  const endpoint = (config.url || '')
+    .split('?')[0]
+    .replace(/\/\d+(?=\/|$)/g, '/{id}')
+    .replace(/\/[a-f0-9-]{24,}(?=\/|$)/gi, '/{id}');
+  const metric = {
+    method: (config.method || 'get').toUpperCase(),
+    endpoint,
+    status: Number(status) || 0,
+    durationMs: Math.round((globalThis.performance?.now?.() ?? Date.now()) - startedAt),
+  };
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('api:performance', { detail: metric }));
+  }
+  if (metric.durationMs >= 1000 || metric.status >= 500) {
+    console.warn('[api-performance]', metric);
+  }
+}
 
 let refreshInFlight = null;
 
@@ -133,6 +157,7 @@ export function refreshSession() {
 
 api.interceptors.response.use(
   (response) => {
+    recordApiPerformance(response.config, response.status);
     if (response.config.method?.toLowerCase() !== 'get') {
       clearResponseCache();
       publishCacheChanged();
@@ -142,6 +167,7 @@ api.interceptors.response.use(
   async (error) => {
     const original = error.config;
     const url = original?.url || '';
+    recordApiPerformance(original, error.response?.status);
 
     if (
       error.response?.status === 401 &&

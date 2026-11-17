@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
-const DEFAULT_TTL_MS = 30_000;
+const DEFAULT_TTL_MS = 15_000;
 const CACHE_DB_NAME = 'hotel-reservation-cache';
 const CACHE_DB_VERSION = 1;
 const CACHE_STORE = 'public-data';
@@ -333,23 +333,29 @@ export function useCachedFetch(
   useEffect(() => {
     if (!enabled) return undefined;
 
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === 'visible') refresh();
+    const refreshWhenVisible = (force = false) => {
+      if (
+        document.visibilityState === 'visible'
+        && (force || !isFresh(key, ttlMs))
+      ) {
+        refresh();
+      }
     };
     const poll = pollIntervalMs > 0
-      ? window.setInterval(refreshWhenVisible, pollIntervalMs)
+      ? window.setInterval(() => refreshWhenVisible(), pollIntervalMs)
       : null;
+    const refreshOnActivity = () => refreshWhenVisible(true);
 
-    window.addEventListener('focus', refreshWhenVisible);
-    document.addEventListener('visibilitychange', refreshWhenVisible);
-    window.addEventListener('cache:changed', refreshWhenVisible);
+    window.addEventListener('focus', refreshOnActivity);
+    document.addEventListener('visibilitychange', refreshOnActivity);
+    window.addEventListener('cache:changed', refreshOnActivity);
     return () => {
       if (poll !== null) window.clearInterval(poll);
-      window.removeEventListener('focus', refreshWhenVisible);
-      document.removeEventListener('visibilitychange', refreshWhenVisible);
-      window.removeEventListener('cache:changed', refreshWhenVisible);
+      window.removeEventListener('focus', refreshOnActivity);
+      document.removeEventListener('visibilitychange', refreshOnActivity);
+      window.removeEventListener('cache:changed', refreshOnActivity);
     };
-  }, [enabled, pollIntervalMs, refresh]);
+  }, [enabled, key, pollIntervalMs, refresh, ttlMs]);
 
   const setData = useCallback((updater) => {
     keyRevisions.set(key, revisionFor(key) + 1);
