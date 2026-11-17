@@ -19,3 +19,6 @@
   outline: 2px solid #174d38;
   border-radius: 4px;
 }
+
+.star.on { color: var(--hotel-gold); }
+.stars-interactive .star:focus-visible { outline-color: var(--hotel-gold); }

@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { reservationsApi } from './customerService';
 import RequestChangeModal from './RequestChangeModal';
 import RatingsPanel from './RatingsPanel';
 import ReservationServices from './ReservationServices';
 import ReservationPayment from './ReservationPayment';
+import { useAuth } from '../auth/AuthContext';
 import { useCachedFetch, invalidate } from '../../lib/cache';
 import '../../layouts/Customer.css';
 
@@ -26,6 +27,7 @@ const fetchReservations = async () => {
 };
 
 export default function MyReservationsPage() {
+  const { user } = useAuth();
   const reservations = useCachedFetch('customer:reservations', fetchReservations);
   const [searchParams] = useSearchParams();
   const rows = reservations.data ?? [];
@@ -42,6 +44,15 @@ export default function MyReservationsPage() {
   const [changing, setChanging] = useState(null);
 
   const visible = rows.filter((r) => (tab === 'current' ? r.is_current : !r.is_current));
+  const now = new Date();
+  const today = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ].join('-');
+  const upcomingCount = rows.filter(
+    (r) => ['pending', 'confirmed'].includes(r.status) && r.check_in_date >= today
+  ).length;
 
   function refresh() {
     invalidate('customer:reservations');
@@ -79,7 +90,27 @@ export default function MyReservationsPage() {
 
   return (
     <section>
-      <h1>My Reservations</h1>
+      <div className="guest-welcome">
+        <div>
+          <p className="guest-eyebrow">YOUR STAY, CONSIDERED</p>
+          <h1>Welcome back, {user?.username || 'Guest'}</h1>
+          <p>Manage your reservations, payments, and services in one place.</p>
+        </div>
+        <div className="guest-welcome-actions">
+          {reservations.data && (
+            <div className="guest-upcoming">
+              <strong>{upcomingCount}</strong>
+              <span>upcoming {upcomingCount === 1 ? 'stay' : 'stays'}</span>
+            </div>
+          )}
+          <Link to="/rooms" className="btn-main">Explore rooms</Link>
+        </div>
+      </div>
+
+      <div className="page-intro">
+        <h1>My Reservations</h1>
+        <p className="muted">Your booking history and current hotel stays.</p>
+      </div>
 
       {paymentResult === 'success' && (
         <div className="panel" role="status">
@@ -127,7 +158,14 @@ export default function MyReservationsPage() {
           <p className="muted">
             {r.check_in_date} to {r.check_out_date} · {r.guests} guest(s)
           </p>
-          <p><strong>{peso.format(r.total_amount)}</strong></p>
+          <p>
+            <strong>Total charges: {peso.format(r.total_due ?? r.total_amount)}</strong>
+            {Number(r.service_total) > 0 && (
+              <span className="muted">
+                {' '}· Includes {peso.format(r.service_total)} in extra services
+              </span>
+            )}
+          </p>
 
           {r.status === 'cancelled' && r.cancellation_reason && (
             <p className="muted">Reason: {r.cancellation_reason}</p>

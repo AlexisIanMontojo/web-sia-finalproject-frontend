@@ -1,5 +1,9 @@
 import axios from 'axios';
-import { clearCache as clearViewCache } from '../lib/cache';
+import {
+  clearCache as clearViewCache,
+  clearMemoryCache,
+  publishCacheChanged,
+} from '../lib/cache';
 
 let accessToken = null;
 const responseCache = new Map();
@@ -22,7 +26,8 @@ export function clearApiCache() {
 
 export function setAccessToken(token) {
   if (accessToken !== token) {
-    clearApiCache();
+    clearResponseCache();
+    clearMemoryCache();
   }
   accessToken = token;
 }
@@ -34,6 +39,7 @@ const api = axios.create({
 
 function responseCacheTtl(config) {
   if (config.cache === false || config.method?.toLowerCase() !== 'get') return 0;
+  if (accessToken) return 0;
 
   const url = (config.url || '').split('?')[0];
   if (
@@ -128,7 +134,8 @@ export function refreshSession() {
 api.interceptors.response.use(
   (response) => {
     if (response.config.method?.toLowerCase() !== 'get') {
-      clearApiCache();
+      clearResponseCache();
+      publishCacheChanged();
     }
     return response;
   },

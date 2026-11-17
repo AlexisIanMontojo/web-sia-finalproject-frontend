@@ -38,8 +38,8 @@ export const passwordApi = {
 };
 
 export const catalogueApi = {
-  rooms: (params) => api.get('/api/public/rooms', { params }),
-  room: (id, params) => api.get(`/api/public/rooms/${id}`, { params }),
+  rooms: (params) => api.get('/api/public/rooms', { params, cache: false }),
+  room: (id, params) => api.get(`/api/public/rooms/${id}`, { params, cache: false }),
 };
 
 export const mapApi = {

@@ -30,3 +30,9 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
   cursor: grab;
 }
+
+.location-picker {
+  border-color: var(--hotel-line);
+  border-radius: 5px;
+}
+.map-pin span { background: var(--hotel-navy); }

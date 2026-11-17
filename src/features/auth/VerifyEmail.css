@@ -66,3 +66,27 @@
 .verify-link:hover {
   background: #103b2a;
 }
+
+.verify-page {
+  background: var(--hotel-ivory);
+  color: var(--hotel-charcoal);
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+}
+.verify-card {
+  border: 1px solid var(--hotel-line);
+  border-radius: 7px;
+  box-shadow: var(--hotel-shadow);
+}
+.verify-card h1 {
+  color: var(--hotel-navy);
+  font-family: "Playfair Display", Georgia, serif;
+  font-weight: 500;
+}
+.verify-card p { color: var(--hotel-muted); }
+.verify-icon.success { color: var(--hotel-green); background: #e8f2ed; }
+.verify-icon.error { color: var(--hotel-red); background: #f4e9e7; }
+.verify-link {
+  border-radius: 5px;
+  background: var(--hotel-navy);
+}
+.verify-link:hover { background: var(--hotel-navy-deep); }

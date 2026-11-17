@@ -154,7 +154,19 @@ export default function ReservationsPage() {
                     {r.check_in_date} → {r.check_out_date}
                   </td>
                   <td>{r.guests}</td>
-                  <td>{peso.format(r.total_amount)}</td>
+                  <td>
+                    {peso.format(r.total_due ?? r.total_amount)}
+                    {Number(r.service_total) > 0 && (
+                      <div className="muted">
+                        Services {peso.format(r.service_total)}
+                      </div>
+                    )}
+                    {r.balance_due != null && (
+                      <div className="muted">
+                        Due {peso.format(r.balance_due)}
+                      </div>
+                    )}
+                  </td>
                   <td>
                     <span className={`badge ${STATUS_BADGE[r.status] || 'badge-gray'}`}>
                       {r.status.replace('_', ' ')}

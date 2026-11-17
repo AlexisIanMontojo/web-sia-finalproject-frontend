@@ -1,35 +1,40 @@
 import { useEffect, useMemo, useState } from 'react';
-import { reservationsApi, reviewApi } from './customerService';
+import { reviewApi, reservationsApi } from './customerService';
 import { toast, showError } from '../../lib/alerts';
 import StarRating from '../../components/StarRating';
+import { useCachedFetch } from '../../lib/cache';
 import '../../layouts/Customer.css';
 
+const fetchReservations = async () => {
+  const { data } = await reservationsApi.list();
+  return data.data;
+};
+
+const fetchReviews = async () => {
+  const { data } = await reviewApi.mine();
+  return data;
+};
+
 export default function RatingsPanel() {
-  const [stays, setStays] = useState([]);
-  const [reviews, setReviews] = useState([]);
-  const [reviewedIds, setReviewedIds] = useState(new Set());
   const [drafts, setDrafts] = useState({});
   const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState(null);
-
-  async function load() {
-    setLoading(true);
-    try {
-      const [resv, mine] = await Promise.all([reservationsApi.list(), reviewApi.mine()]);
-      setStays(resv.data.data);
-      setReviews(mine.data.data);
-      setReviewedIds(new Set(mine.data.reviewed_reservation_ids));
-    } catch (err) {
-      showError('Could not load your stays', err.response?.data?.message || 'Try again.');
-    } finally {
-      setLoading(false);
-    }
-  }
+  const staysState = useCachedFetch('customer:reservations', fetchReservations);
+  const reviewsState = useCachedFetch('customer:my-reviews', fetchReviews);
+  const stays = useMemo(() => staysState.data || [], [staysState.data]);
+  const reviews = reviewsState.data?.data || [];
+  const reviewedIds = useMemo(
+    () => new Set(reviewsState.data?.reviewed_reservation_ids || []),
+    [reviewsState.data]
+  );
+  const loading = staysState.loading || reviewsState.loading;
 
   useEffect(() => {
-    load();
-  }, []);
+    if (staysState.error || reviewsState.error) {
+      const error = staysState.error || reviewsState.error;
+      showError('Could not load your stays', error.response?.data?.message || 'Try again.');
+    }
+  }, [reviewsState.error, staysState.error]);
 
   const eligible = useMemo(
     () => stays.filter((s) => s.status === 'checked_out' && !reviewedIds.has(s.id)),
@@ -56,7 +61,7 @@ export default function RatingsPanel() {
         comment: d.comment,
       });
       toast('success', 'Thank you for your review');
-      load();
+      await reviewsState.refresh();
     } catch (err) {
       setErrors((e) => ({
         ...e,

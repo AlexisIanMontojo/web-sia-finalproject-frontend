@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { catalogueApi, fetchDefaultCatalogue } from './customerService';
 import { useCachedFetch } from '../../lib/cache';
 import { apiUrl } from '../../services/api';
 import RoomImage from '../../components/RoomImage';
+import { Skeleton } from '../../components/Loading';
 import '../../layouts/Customer.css';
 
 
@@ -61,14 +62,31 @@ export default function BrowseRoomsPage() {
   });
 
   const [form, setForm] = useState(BROWSE);
-  const [searched, setSearched] = useState(null);
+  const [searchedParams, setSearchedParams] = useState(null);
   const [searchError, setSearchError] = useState([]);
-  const [searching, setSearching] = useState(false);
   const [onlyAvailable, setOnlyAvailable] = useState(false);
 
-  // Use the cached catalogue until the visitor runs a search.
-  const result = searched ?? defaultCatalogue.data ?? null;
-  const loading = !result && defaultCatalogue.loading;
+  const searchFetcher = useCallback(async () => {
+    const { data } = await catalogueApi.rooms(toQuery(searchedParams));
+    return data;
+  }, [searchedParams]);
+  const searchState = useCachedFetch(
+    `public:rooms:search:${searchedParams ? JSON.stringify(toQuery(searchedParams)) : 'inactive'}`,
+    searchFetcher,
+    {
+      enabled: Boolean(searchedParams),
+      ttlMs: 0,
+      persist: false,
+    }
+  );
+  const result = searchedParams ? searchState.data : defaultCatalogue.data ?? null;
+  const loading = searchedParams
+    ? !result && searchState.loading
+    : !result && defaultCatalogue.loading;
+  const searchLoading = Boolean(searchedParams && searchState.loading && !searchState.data);
+  const catalogueError = searchedParams ? searchState.error : defaultCatalogue.error;
+  const apiSearchError = catalogueError?.response?.data?.errors
+    || [catalogueError?.response?.data?.message || 'Could not load rooms.'];
 
   const search = result?.search ?? null;
   const summary = result?.summary ?? { available: 0 };
@@ -87,19 +105,9 @@ export default function BrowseRoomsPage() {
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
   }
 
-  async function runSearch(params) {
-    setSearching(true);
+  function runSearch(params) {
     setSearchError([]);
-    try {
-      const { data } = await catalogueApi.rooms(toQuery(params));
-      setSearched(isBrowseAll(params) ? null : data);
-    } catch (err) {
-      setSearchError(
-        err.response?.data?.errors || [err.response?.data?.message || 'Could not load rooms.']
-      );
-    } finally {
-      setSearching(false);
-    }
+    setSearchedParams(isBrowseAll(params) ? null : { ...params });
   }
 
   function submit(e) {
@@ -189,8 +197,8 @@ export default function BrowseRoomsPage() {
           </select>
         </label>
         <div className="search-actions">
-          <button className="btn-main" disabled={searching}>
-            {searching ? 'Searching…' : 'Search'}
+          <button className="btn-main" disabled={searchLoading}>
+            {searchLoading ? 'Searching…' : 'Search'}
           </button>
           {hasDates && (
             <button type="button" className="btn-soft" onClick={browseAll}>
@@ -203,7 +211,7 @@ export default function BrowseRoomsPage() {
       <div className="results-bar">
         <p className="muted">
           {loading
-            ? 'Loading rooms…'
+            ? 'Finding rooms…'
             : `${rooms.length} room${rooms.length === 1 ? '' : 's'} shown`}
           {hasDates &&
             !loading &&
@@ -221,17 +229,31 @@ export default function BrowseRoomsPage() {
         )}
       </div>
 
-      {searchError.length > 0 && (
-        <div className="error-box">
-          {searchError.map((m) => (
+      {(searchError.length > 0 || catalogueError) && (
+        <div className="error-box" role="alert">
+          {(searchError.length > 0 ? searchError : apiSearchError).map((m) => (
             <div key={m}>{m}</div>
           ))}
         </div>
       )}
 
-      {!loading && rooms.length === 0 && (
+      {!loading && !catalogueError && rooms.length === 0 && (
         <div className="panel">
           No rooms match your search. Try other dates, fewer guests, or another room type.
+        </div>
+      )}
+
+      {loading && (
+        <div className="room-grid skeleton-room-grid" role="status" aria-label="Loading rooms">
+          {[0, 1, 2].map((item) => (
+            <article className="room-card skeleton-room-card" key={item}>
+              <Skeleton className="skeleton-room-photo" />
+              <Skeleton className="skeleton-line skeleton-line-wide" />
+              <Skeleton className="skeleton-line" />
+              <Skeleton className="skeleton-line skeleton-line-short" />
+              <Skeleton className="skeleton-action" />
+            </article>
+          ))}
         </div>
       )}
 

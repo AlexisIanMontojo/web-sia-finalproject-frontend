@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { availabilityApi, roomBlocksApi } from '../adminService';
 import { toast, showError, confirmDelete } from '../../../lib/alerts';
+import { useCachedFetch } from '../../../lib/cache';
 import '../../../layouts/Admin.css';
 
 function localDate(offset = 0) {
@@ -46,10 +47,6 @@ const TYPE_LABEL = {
 
 export default function AvailabilityPage() {
   const [range, setRange] = useState({ from: localDate(0), to: localDate(7) });
-  const [data, setData] = useState(null);
-  const [summary, setSummary] = useState(null);
-  const [today, setToday] = useState(localDate(0));
-  const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('all');
 
   const [blockForm, setBlockForm] = useState({
@@ -60,26 +57,33 @@ export default function AvailabilityPage() {
   const [blockErrors, setBlockErrors] = useState([]);
   const [saving, setSaving] = useState(false);
 
-  async function load(r = range) {
-    setLoading(true);
-    try {
-      const { data: res } = await availabilityApi.list(r.from, r.to);
-      setData(res.data);
-      setSummary(res.summary);
-      setToday(res.today);
-    } catch (err) {
-      showError(
-        'Could not load availability',
-        err.response?.data?.errors?.join(' ') || err.response?.data?.message || 'Try again.'
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
+  const fetchAvailability = useCallback(
+    async () => (await availabilityApi.list(range.from, range.to)).data,
+    [range.from, range.to]
+  );
+  const availabilityState = useCachedFetch(
+    `admin:availability:${range.from}:${range.to}`,
+    fetchAvailability
+  );
+  const data = availabilityState.data?.data ?? null;
+  const summary = availabilityState.data?.summary ?? null;
+  const today = availabilityState.data?.today || localDate(0);
+  const loading = availabilityState.loading;
 
   useEffect(() => {
-    load();
-  }, []);
+    if (availabilityState.error) {
+      showError(
+        'Could not load availability',
+        availabilityState.error.response?.data?.errors?.join(' ')
+          || availabilityState.error.response?.data?.message
+          || 'Try again.'
+      );
+    }
+  }, [availabilityState.error]);
+
+  function load() {
+    availabilityState.refresh();
+  }
 
   const days = useMemo(() => nightsBetween(range.from, range.to), [range]);
 
@@ -138,7 +142,7 @@ export default function AvailabilityPage() {
         end_date: blockForm.end_date,
         block_type: blockForm.block_type,
       });
-      load(range);
+      load();
     } catch (err) {
       setBlockErrors(
         err.response?.data?.errors || [err.response?.data?.message || 'Could not save these dates.']
@@ -155,7 +159,7 @@ export default function AvailabilityPage() {
     try {
       await roomBlocksApi.remove(block.id);
       toast('success', 'Removed');
-      load(range);
+      load();
     } catch (err) {
       showError('Could not remove', err.response?.data?.message || 'Try again.');
     }
@@ -181,7 +185,7 @@ export default function AvailabilityPage() {
           <span>To (check-out)</span>
           <input className="input" type="date" name="to" value={range.to} onChange={handleRangeChange} />
         </label>
-        <button className="btn btn-primary" onClick={() => load(range)} disabled={loading}>
+        <button className="btn btn-primary" onClick={load} disabled={loading}>
           {loading ? 'Loading…' : 'Show'}
         </button>
         <select className="input" value={filter} onChange={(e) => setFilter(e.target.value)}>

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import logo from '../../assets/images/logo.jpg';
 import { useAuth } from './AuthContext';
 import { googleSignup, register, verifyEmailCode } from './authService';
 import GoogleSignInButton from './components/GoogleSignInButton';
@@ -149,7 +148,8 @@ export default function Register() {
   return (
     <main className="auth-page">
       <section className="auth-brand">
-        <img className="auth-logo" src={logo} alt="Hotel logo" />
+        <div className="auth-mark" aria-hidden="true">TL</div>
+        <p className="auth-brand-name">Tree of Life Hotel</p>
         <h1>Your Stay, Our Priority</h1>
         <p>
           Create an account to discover rooms, make reservations,

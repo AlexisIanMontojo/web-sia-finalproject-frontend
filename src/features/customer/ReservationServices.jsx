@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
 import { paymentsApi, servicesApi } from './customerService';
 import { toast, showError } from '../../lib/alerts';
@@ -85,6 +85,7 @@ export default function ReservationServices({ reservation }) {
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState(null);
   const [paying, setPaying] = useState('');
+  const requestKey = useRef(null);
 
   const requestFetcher = useCallback(() => fetchReservationServices(reservation.id), [reservation.id]);
   const catalogState = useCachedFetch('customer:service-catalog', fetchServiceCatalog, { enabled: open });
@@ -170,12 +171,15 @@ export default function ReservationServices({ reservation }) {
     setSaving(true);
     setErrors([]);
     try {
+      requestKey.current ??= globalThis.crypto.randomUUID();
       await servicesApi.add(reservation.id, {
         service_id: service.id,
         quantity,
         scheduled_at: service.requires_schedule ? form.scheduled_at : '',
         notes: form.notes.trim(),
+        idempotency_key: requestKey.current,
       });
+      requestKey.current = null;
       toast('success', 'Request sent. The hotel will confirm it.');
       clearPick();
       retainCatalogCache();

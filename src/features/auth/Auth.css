@@ -201,6 +201,15 @@
     margin-bottom: 15px;
   }
 
+  .auth-mark {
+    width: 62px;
+    height: 62px;
+    margin-bottom: 8px;
+    font-size: 1.25rem;
+  }
+
+  .auth-brand .auth-brand-name { margin-bottom: 12px; }
+
   .auth-brand h1 {
     font-size: 1.8rem;
   }
@@ -219,3 +228,93 @@
     font-size: 1.9rem;
   }
 }
+
+.auth-page {
+  background: var(--hotel-ivory);
+  color: var(--hotel-charcoal);
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+}
+
+.auth-brand {
+  position: relative;
+  overflow: hidden;
+  background: var(--hotel-navy);
+}
+.auth-brand::after {
+  position: absolute;
+  right: -120px;
+  bottom: -180px;
+  width: 440px;
+  height: 440px;
+  border: 1px solid rgba(198, 167, 106, 0.32);
+  content: "";
+  pointer-events: none;
+}
+.auth-logo {
+  border: 1px solid rgba(198, 167, 106, 0.7);
+  border-radius: 2px;
+  background: #fff;
+  padding: 5px;
+}
+.auth-mark {
+  display: grid;
+  place-items: center;
+  width: 82px;
+  height: 82px;
+  margin-bottom: 12px;
+  border: 1px solid var(--hotel-gold);
+  color: var(--hotel-gold);
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 1.65rem;
+  letter-spacing: 0.04em;
+}
+.auth-brand .auth-brand-name {
+  margin: 0 0 20px;
+  color: #e0c58f;
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.auth-brand h1,
+.auth-card h2 {
+  color: var(--hotel-navy);
+  font-family: "Playfair Display", Georgia, serif;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.auth-brand h1 { color: #fff; }
+.auth-brand p { color: #d3dade; }
+.auth-panel { background: var(--hotel-ivory); }
+.auth-card {
+  max-width: 460px;
+  padding: clamp(24px, 4vw, 42px);
+  border: 1px solid var(--hotel-line);
+  background: #fff;
+  box-shadow: var(--hotel-shadow);
+}
+.auth-card h2 { font-size: clamp(1.8rem, 3vw, 2.35rem); }
+.auth-subtitle { color: var(--hotel-muted); }
+.auth-field label { color: #3a4247; font-size: 0.86rem; }
+.auth-field input {
+  min-height: 46px;
+  border: 1px solid #d8d1c5;
+  border-radius: 5px;
+  color: var(--hotel-charcoal);
+}
+.auth-field input:focus {
+  border-color: var(--hotel-gold);
+  box-shadow: 0 0 0 3px rgba(198, 167, 106, 0.2);
+}
+.auth-button {
+  min-height: 46px;
+  border: 1px solid var(--hotel-navy);
+  border-radius: 5px;
+  background: var(--hotel-navy);
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+.auth-button:hover { border-color: var(--hotel-navy-deep); background: var(--hotel-navy-deep); }
+.auth-switch { color: var(--hotel-muted); }
+.auth-switch a { color: var(--hotel-navy); }
+.auth-error { border: 1px solid #e6c6c1; background: #fbf3f1; color: var(--hotel-red); }
+.auth-success { border: 1px solid #c9ded2; background: #edf5f0; color: var(--hotel-green); }

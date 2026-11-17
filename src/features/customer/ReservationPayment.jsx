@@ -101,7 +101,8 @@ export default function ReservationPayment({ reservation, verifyExternalId = '' 
   const pendingPayment = payments.find((payment) =>
     payment.status === 'pending' && payment.kind !== 'service'
   );
-  const hasPaid = info.paid > 0;
+  const reservationBalance = Number(info.reservation_balance ?? info.balance);
+  const hasPaid = Number(info.reservation_paid ?? info.paid) > 0;
   const selectedAmountType = hasPaid
     ? 'balance'
     : reservation.status === 'checked_out'
@@ -109,14 +110,22 @@ export default function ReservationPayment({ reservation, verifyExternalId = '' 
       : amountType;
   const paymentAmount = selectedAmountType === 'downpayment'
     ? info.downpayment_due
-    : info.balance;
+    : reservationBalance;
 
   return (
     <div className="services-box">
       <h4>Payment</h4>
 
       <div className="quote-row">
-        <span>Total</span>
+        <span>Stay charges</span>
+        <span>{peso.format(info.reservation_total ?? reservation.total_amount)}</span>
+      </div>
+      <div className="quote-row">
+        <span>Extra service charges</span>
+        <span>{peso.format(info.service_total || 0)}</span>
+      </div>
+      <div className="quote-row">
+        <span>Total charges</span>
         <span>{peso.format(info.total)}</span>
       </div>
       <div className="quote-row">
@@ -167,7 +176,7 @@ export default function ReservationPayment({ reservation, verifyExternalId = '' 
         </div>
       )}
 
-      {!pendingPayment && info.open && info.balance > 0 && (
+      {!pendingPayment && info.open && reservationBalance > 0 && (
         <div className="stack">
           {!hasPaid && reservation.status !== 'checked_out' ? (
             <fieldset className="payment-choice">
@@ -192,13 +201,13 @@ export default function ReservationPayment({ reservation, verifyExternalId = '' 
                   disabled={paying}
                   onChange={() => setAmountType('full')}
                 />
-                Pay in full · {peso.format(info.balance)}
+                Pay in full · {peso.format(reservationBalance)}
               </label>
             </fieldset>
           ) : (
             <p className="muted">
               {hasPaid ? 'Downpayment received. ' : ''}
-              Remaining balance: {peso.format(info.balance)}
+              Remaining reservation balance: {peso.format(reservationBalance)}
             </p>
           )}
 

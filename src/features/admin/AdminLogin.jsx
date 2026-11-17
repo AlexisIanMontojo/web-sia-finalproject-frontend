@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import logo from '../../assets/images/logo.jpg';
 import { useAuth } from '../auth/AuthContext';
 import '../auth/Auth.css';
 import { isStaffRole, homeFor } from '../../lib/roles';
@@ -56,7 +55,8 @@ export default function AdminLogin() {
   return (
     <main className="auth-page">
       <section className="auth-brand">
-        <img className="auth-logo" src={logo} alt="Hotel logo" />
+        <div className="auth-mark" aria-hidden="true">TL</div>
+        <p className="auth-brand-name">Tree of Life Hotel</p>
         <h1>Administrator Portal</h1>
         <p>
           Authorized staff only. Manage rooms, reservations, check-ins,

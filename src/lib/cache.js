@@ -11,14 +11,37 @@ const inFlight = new Map();
 const keyRevisions = new Map();
 let cacheEpoch = 0;
 let databasePromise = null;
+let cacheScope = null;
+
+const cacheChannel = typeof BroadcastChannel === 'undefined'
+  ? null
+  : new BroadcastChannel('hotel-reservation-cache');
+
+if (cacheChannel && typeof window !== 'undefined') {
+  cacheChannel.onmessage = () => window.dispatchEvent(new Event('cache:changed'));
+}
+
+function persistentKeyFor(key) {
+  if (key.startsWith('public:')) return key;
+  return cacheScope ? `private:${cacheScope}:${key}` : null;
+}
+
+function shouldPersist(key, persist) {
+  return persist === true || (persist !== false && Boolean(persistentKeyFor(key)));
+}
 
 function revisionFor(key) {
   return keyRevisions.get(key) || 0;
 }
 
 function updateCache(key, data, updatedAt = Date.now()) {
-  cache.set(key, data);
+  const previous = cache.get(key);
+  const unchanged = previous !== undefined
+    && JSON.stringify(previous) === JSON.stringify(data);
+  const current = unchanged ? previous : data;
+  cache.set(key, current);
   cacheUpdatedAt.set(key, updatedAt);
+  return current;
 }
 
 function isFresh(key, ttlMs) {
@@ -46,13 +69,16 @@ function openCacheDatabase() {
 }
 
 async function readPersistent(key) {
+  const persistentKey = persistentKeyFor(key);
+  if (!persistentKey) return null;
+
   try {
     const database = await openCacheDatabase();
     if (!database) return null;
 
     return await new Promise((resolve, reject) => {
       const transaction = database.transaction(CACHE_STORE, 'readonly');
-      const request = transaction.objectStore(CACHE_STORE).get(key);
+      const request = transaction.objectStore(CACHE_STORE).get(persistentKey);
       request.onsuccess = () => resolve(request.result || null);
       request.onerror = () => reject(request.error || new Error('Could not read browser cache.'));
     });
@@ -63,7 +89,8 @@ async function readPersistent(key) {
 }
 
 async function writePersistent(key, data, updatedAt, stillCurrent) {
-  if (!key.startsWith('public:')) return;
+  const persistentKey = persistentKeyFor(key);
+  if (!persistentKey) return;
 
   try {
     const database = await openCacheDatabase();
@@ -71,7 +98,7 @@ async function writePersistent(key, data, updatedAt, stillCurrent) {
 
     await new Promise((resolve, reject) => {
       const transaction = database.transaction(CACHE_STORE, 'readwrite');
-      transaction.objectStore(CACHE_STORE).put({ key, data, updatedAt });
+      transaction.objectStore(CACHE_STORE).put({ key: persistentKey, data, updatedAt });
       transaction.oncomplete = resolve;
       transaction.onerror = () => reject(transaction.error || new Error('Could not write browser cache.'));
       transaction.onabort = () => reject(transaction.error || new Error('Browser cache write was aborted.'));
@@ -82,13 +109,16 @@ async function writePersistent(key, data, updatedAt, stillCurrent) {
 }
 
 async function deletePersistent(key) {
+  const persistentKey = persistentKeyFor(key);
+  if (!persistentKey) return;
+
   try {
     const database = await openCacheDatabase();
     if (!database) return;
 
     await new Promise((resolve, reject) => {
       const transaction = database.transaction(CACHE_STORE, 'readwrite');
-      transaction.objectStore(CACHE_STORE).delete(key);
+      transaction.objectStore(CACHE_STORE).delete(persistentKey);
       transaction.oncomplete = resolve;
       transaction.onerror = () => reject(transaction.error || new Error('Could not delete browser cache.'));
       transaction.onabort = () => reject(transaction.error || new Error('Browser cache deletion was aborted.'));
@@ -129,7 +159,7 @@ function fetchAndCache(key, fetcher) {
     .then(fetcher)
     .then((data) => {
       if (isCurrent(key, epoch, revision)) {
-        updateCache(key, data);
+        return updateCache(key, data);
       }
       return data;
     })
@@ -158,6 +188,29 @@ export function clearCache() {
   void clearPersistent();
 }
 
+export function clearMemoryCache() {
+  cacheEpoch += 1;
+  cache.clear();
+  cacheUpdatedAt.clear();
+  keyRevisions.clear();
+  inFlight.clear();
+}
+
+export function setCacheScope(scope) {
+  const nextScope = scope == null ? null : String(scope);
+  if (cacheScope !== nextScope) {
+    cacheScope = nextScope;
+    clearMemoryCache();
+  }
+}
+
+export function publishCacheChanged() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('cache:changed'));
+  }
+  cacheChannel?.postMessage({ changedAt: Date.now() });
+}
+
 export async function prefetchCachedFetch(
   key,
   fetcher,
@@ -167,7 +220,8 @@ export async function prefetchCachedFetch(
 
   const epoch = cacheEpoch;
   const revision = revisionFor(key);
-  if (persist && key.startsWith('public:') && !cache.has(key)) {
+  const persistData = shouldPersist(key, persist);
+  if (persistData && !cache.has(key)) {
     const saved = await readPersistent(key);
     if (
       isCurrent(key, epoch, revision) &&
@@ -180,7 +234,7 @@ export async function prefetchCachedFetch(
   }
 
   const data = await fetchAndCache(key, fetcher);
-  if (persist) {
+  if (persistData) {
     const updatedAt = cacheUpdatedAt.get(key) || Date.now();
     void writePersistent(key, data, updatedAt, () => isCurrent(key, epoch, revision));
   }
@@ -193,10 +247,12 @@ export function useCachedFetch(
   {
     enabled = true,
     ttlMs = DEFAULT_TTL_MS,
-    persist = false,
+    persist,
     staleWhileRevalidateMs = 0,
+    pollIntervalMs = 15_000,
   } = {}
 ) {
+  const persistData = shouldPersist(key, persist);
   const [state, setState] = useState(() => ({
     key,
     data: cache.has(key) ? cache.get(key) : null,
@@ -218,17 +274,24 @@ export function useCachedFetch(
 
       const updatedAt = cacheUpdatedAt.get(key) || Date.now();
       setState({ key, data: fresh, loading: false, error: null });
-      if (persist) {
+      if (persistData) {
         void writePersistent(key, fresh, updatedAt, () => isCurrent(key, epoch, revision));
       }
     } catch (error) {
       if (!isCurrent(key, epoch, revision)) return;
       setState((current) => {
         const data = current.key === key ? current.data : cache.has(key) ? cache.get(key) : null;
+        if (
+          current.key === key
+          && current.error?.message === error?.message
+          && current.error?.response?.status === error?.response?.status
+        ) {
+          return current;
+        }
         return { key, data, loading: false, error };
       });
     }
-  }, [fetcher, key, persist]);
+  }, [fetcher, key, persistData]);
 
   useEffect(() => {
     if (!enabled) return undefined;
@@ -239,12 +302,15 @@ export function useCachedFetch(
 
     const load = async () => {
       let updatedAt = cacheUpdatedAt.get(key) || 0;
-      if (!cache.has(key) && persist && key.startsWith('public:')) {
+      if (!cache.has(key) && persistData) {
         const saved = await readPersistent(key);
         if (!active || !isCurrent(key, epoch, revision)) return;
 
-        const maxAge = ttlMs + staleWhileRevalidateMs;
-        if (saved && Date.now() - saved.updatedAt <= maxAge) {
+        const keepSaved = saved && (
+          !key.startsWith('public:')
+          || Date.now() - saved.updatedAt <= ttlMs + staleWhileRevalidateMs
+        );
+        if (keepSaved) {
           updateCache(key, saved.data, saved.updatedAt);
           updatedAt = saved.updatedAt;
           setState({ key, data: saved.data, loading: false, error: null });
@@ -262,7 +328,28 @@ export function useCachedFetch(
     return () => {
       active = false;
     };
-  }, [enabled, key, persist, refresh, staleWhileRevalidateMs, ttlMs]);
+  }, [enabled, key, persistData, refresh, staleWhileRevalidateMs, ttlMs]);
+
+  useEffect(() => {
+    if (!enabled) return undefined;
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    const poll = pollIntervalMs > 0
+      ? window.setInterval(refreshWhenVisible, pollIntervalMs)
+      : null;
+
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    window.addEventListener('cache:changed', refreshWhenVisible);
+    return () => {
+      if (poll !== null) window.clearInterval(poll);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.removeEventListener('cache:changed', refreshWhenVisible);
+    };
+  }, [enabled, pollIntervalMs, refresh]);
 
   const setData = useCallback((updater) => {
     keyRevisions.set(key, revisionFor(key) + 1);
@@ -272,13 +359,13 @@ export function useCachedFetch(
       const previous = current.key === key ? current.data : cache.has(key) ? cache.get(key) : null;
       const next = typeof updater === 'function' ? updater(previous) : updater;
       updateCache(key, next);
-      if (persist) {
+      if (persistData) {
         const epoch = cacheEpoch;
         void writePersistent(key, next, cacheUpdatedAt.get(key), () => isCurrent(key, epoch, revision));
       }
       return { key, data: next, loading: false, error: null };
     });
-  }, [key, persist]);
+  }, [key, persistData]);
 
   const current = state.key === key ? state : {
     key,

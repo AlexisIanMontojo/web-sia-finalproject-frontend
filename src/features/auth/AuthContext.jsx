@@ -6,7 +6,8 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { setAccessToken, refreshSession } from '../../services/api';
+import { setAccessToken, refreshSession, clearApiCache } from '../../services/api';
+import { setCacheScope } from '../../lib/cache';
 import * as authService from './authService';
 
 const AuthContext = createContext(null);
@@ -17,6 +18,8 @@ export function AuthProvider({ children }) {
 
   const clearSession = useCallback(() => {
     setAccessToken(null);
+    setCacheScope(null);
+    clearApiCache();
     sessionStorage.removeItem('refresh_token');
     setUser(null);
     setStatus('anonymous');
@@ -35,6 +38,7 @@ export function AuthProvider({ children }) {
         await refreshSession();
         const { data } = await authService.getMe();
         if (active) {
+          setCacheScope(`${data.user.id}:${data.user.role}`);
           setUser(data.user);
           setStatus('authenticated');
         }
@@ -56,6 +60,7 @@ export function AuthProvider({ children }) {
 
   const loginWithTokens = useCallback((data) => {
     setAccessToken(data.access_token);
+    setCacheScope(`${data.user.id}:${data.user.role}`);
     sessionStorage.setItem('refresh_token', data.refresh_token);
     setUser(data.user);
     setStatus('authenticated');

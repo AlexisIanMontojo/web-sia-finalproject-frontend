@@ -104,3 +104,23 @@
   .channel-picker { grid-template-columns: 1fr; }
   .bubble { max-width: 92%; }
 }
+
+.inbox-list,
+.thread-card {
+  border-color: var(--hotel-line);
+  border-radius: 6px;
+  box-shadow: var(--hotel-shadow);
+}
+.inbox-item { border-bottom-color: #eee9e0; }
+.inbox-item:hover { background: #faf8f3; }
+.inbox-item.active { background: #f5f0e2; }
+.inbox-subject,
+.thread-card { color: var(--hotel-charcoal); }
+.bubble-guest { background: #f0eee9; color: var(--hotel-charcoal); }
+.bubble-hotel { background: var(--hotel-navy); color: #fff; }
+.channel-card { border-radius: 5px; }
+.channel-card.selected { border-color: var(--hotel-gold); box-shadow: 0 0 0 2px rgba(198, 167, 106, 0.18); }
+.tag-email { background: #e8f0f4; color: var(--hotel-blue); }
+.tag-unread { background: #f7f0df; color: var(--hotel-amber); }
+.tag-warn { background: #f4e9e7; color: var(--hotel-red); }
+.tag-ok { background: #e8f2ed; color: var(--hotel-green); }
