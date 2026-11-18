@@ -3,6 +3,7 @@ import Swal from 'sweetalert2';
 import { servicesApi } from './customerService';
 import { toast, showError } from '../../lib/alerts';
 import { useCachedFetch } from '../../lib/cache';
+import { clearApiCache } from '../../services/api';
 import '../../layouts/Customer.css';
 import '../../layouts/Messages.css';
 
@@ -71,8 +72,9 @@ const fetchServiceCatalog = async () => {
   return data.data;
 };
 
+// Always reads the server, so a new request shows up right after it is submitted.
 const fetchReservationServices = async (id) => {
-  const { data } = await servicesApi.forReservation(id);
+  const { data } = await servicesApi.forReservation(id, true);
   return data;
 };
 
@@ -91,7 +93,7 @@ export default function ReservationServices({ reservation }) {
   const requestState = useCachedFetch(
     `customer:reservation-services:${reservation.id}`,
     requestFetcher,
-    { enabled: open }
+    { enabled: open, ttlMs: 0 }
   );
   const catalog = useMemo(() => catalogState.data || [], [catalogState.data]);
   const serviceData = requestState.data;
@@ -142,9 +144,14 @@ export default function ReservationServices({ reservation }) {
     (service.unit === 'per_stay' || (form.quantity !== '' && Number(form.quantity) >= limits.min)) &&
     (!service.requires_schedule || form.scheduled_at !== '');
 
-  function retainCatalogCache() {
-    catalogState.setData(catalog);
-  }
+  // Refreshes this reservation's service list and tells the rest of the page.
+  const refreshAfterChange = useCallback(async () => {
+    clearApiCache();
+    await requestState.refresh();
+    window.dispatchEvent(new CustomEvent('reservation-services:changed', {
+      detail: { reservationId: Number(reservation.id) },
+    }));
+  }, [requestState, reservation.id]);
 
   function pick(s) {
     setPickedId(s.id);
@@ -180,11 +187,7 @@ export default function ReservationServices({ reservation }) {
       requestKey.current = null;
       toast('success', 'Request sent. The hotel will confirm it.');
       clearPick();
-      retainCatalogCache();
-      await requestState.refresh();
-      window.dispatchEvent(new CustomEvent('reservation-services:changed', {
-        detail: { reservationId: Number(reservation.id) },
-      }));
+      await refreshAfterChange();
     } catch (err) {
       setErrors(
         err.response?.data?.errors || [err.response?.data?.message || 'Could not add this service.']
@@ -209,11 +212,7 @@ export default function ReservationServices({ reservation }) {
     try {
       await servicesApi.cancel(row.id);
       toast('success', 'Request cancelled');
-      retainCatalogCache();
-      await requestState.refresh();
-      window.dispatchEvent(new CustomEvent('reservation-services:changed', {
-        detail: { reservationId: Number(reservation.id) },
-      }));
+      await refreshAfterChange();
     } catch (err) {
       showError('Cannot cancel', err.response?.data?.message || 'Try again.');
     } finally {
@@ -274,8 +273,8 @@ export default function ReservationServices({ reservation }) {
               ))}
               {unpaidCompletedTotal > 0 && (
                 <p className="muted">
-                  Pay {peso.format(unpaidCompletedTotal)} in cash at the front desk. The hotel
-                  will confirm the payment after receiving it.
+                  Pay {peso.format(unpaidCompletedTotal)} in cash at the front desk, or through
+                  Xendit from the payment section above.
                 </p>
               )}
             </div>

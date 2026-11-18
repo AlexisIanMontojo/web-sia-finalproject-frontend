@@ -86,7 +86,8 @@ export const staffApi = {
 };
 
 export const serviceRequestsApi = {
-  list: (status) => api.get('/api/admin/service-requests', { params: { status } }),
+  list: (status) =>
+    api.get('/api/admin/service-requests', { params: { status }, cache: false }),
   confirm: (id) => api.post(`/api/admin/service-requests/${id}/confirm`),
   complete: (id) => api.post(`/api/admin/service-requests/${id}/complete`),
   billed: (id) => api.post(`/api/admin/service-requests/${id}/billed`),
@@ -165,3 +166,4 @@ export const adminPagePrefetchers = {
     { key: 'admin:reviews', fetcher: () => listData(() => adminReviewsApi.list()) },
   ],
 };
+
