@@ -115,10 +115,10 @@ export default function ServiceRequestsPage() {
     if (action === 'billed') {
       const result = await Swal.fire({
         icon: 'question',
-        title: 'Confirm cash payment?',
+        title: 'Mark this service paid?',
         text: `Confirm that cash was received for ${row.name} from ${row.guest_name}.`,
         showCancelButton: true,
-        confirmButtonText: 'Yes, cash received',
+        confirmButtonText: 'Yes, mark paid',
         confirmButtonColor: '#174d38',
       });
       if (!result.isConfirmed) return;
@@ -129,7 +129,7 @@ export default function ServiceRequestsPage() {
       if (action === 'confirm') await serviceRequestsApi.confirm(row.id);
       if (action === 'complete') await serviceRequestsApi.complete(row.id);
       if (action === 'billed') await serviceRequestsApi.billed(row.id);
-      toast('success', action === 'billed' ? 'Cash payment confirmed' : 'Updated');
+      toast('success', action === 'billed' ? 'Service marked paid' : 'Updated');
       await requestState.refresh();
     } catch (err) {
       showError('Could not update', err.response?.data?.message || 'Try again.');
@@ -316,13 +316,13 @@ export default function ServiceRequestsPage() {
                             Complete
                           </button>
                         )}
-                        {canManage && r.status === 'completed' && r.billing_status === 'unpaid' && !r.pending_payment_provider && (
+                        {canManage && r.status !== 'cancelled' && r.billing_status === 'unpaid' && !r.pending_payment_provider && (
                           <button
                             className="btn btn-primary"
                             disabled={busyId === r.id}
                             onClick={() => act(r, 'billed')}
                           >
-                            Confirm cash received
+                            Mark as paid
                           </button>
                         )}
                       </td>

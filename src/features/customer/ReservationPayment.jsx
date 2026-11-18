@@ -142,19 +142,6 @@ export default function ReservationPayment({ reservation, verifyExternalId = '' 
         <span>Stay balance</span>
         <span>{peso.format(info.reservation_balance ?? info.balance)}</span>
       </div>
-      {Number(info.service_total) > 0 && (
-        <div className="quote-row">
-          <span>
-            Extra service charges (paid separately)
-            {Number(info.service_balance) > 0 && (
-              <div className="muted">
-                Unpaid in cash after service is completed: {peso.format(info.service_balance)}
-              </div>
-            )}
-          </span>
-          <span>{peso.format(info.service_total)}</span>
-        </div>
-      )}
 
       {payments.length > 0 && (
         <div className="stack">

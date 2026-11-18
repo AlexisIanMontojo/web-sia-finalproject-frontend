@@ -178,17 +178,7 @@ export default function MyReservationsPage() {
           <p className="muted">
             {r.check_in_date} to {r.check_out_date} · {r.guests} guest(s)
           </p>
-          <p>
-            <strong>Stay total: {peso.format(r.total_amount)}</strong>
-            {Number(r.service_total) > 0 && (
-              <div className="muted">
-                Extra services are separate from the stay balance. Unpaid service charges:{' '}
-                {peso.format(
-                  Math.max(0, Number(r.service_total) - Number(r.service_paid || 0))
-                )}
-              </div>
-            )}
-          </p>
+          <p><strong>Stay total: {peso.format(r.total_amount)}</strong></p>
 
           {r.status === 'cancelled' && r.cancellation_reason && (
             <p className="muted">Reason: {r.cancellation_reason}</p>

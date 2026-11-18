@@ -98,7 +98,6 @@ export default function ReservationServices({ reservation }) {
   const catalog = useMemo(() => catalogState.data || [], [catalogState.data]);
   const serviceData = requestState.data;
   const requests = serviceData?.data || [];
-  const total = serviceData?.total || 0;
   const stayOpen = serviceData?.open || false;
   const loaded = Boolean(catalogState.data && serviceData);
   const loading = open && !loaded && (catalogState.loading || requestState.loading);
@@ -119,9 +118,9 @@ export default function ReservationServices({ reservation }) {
     () => catalog.find((s) => s.id === pickedId) || null,
     [catalog, pickedId]
   );
-  const unpaidCompletedTotal = requests
-    .filter((request) => request.status === 'completed' && request.billing_status === 'unpaid')
-    .reduce((sum, request) => sum + Number(request.total_amount || 0), 0);
+  const hasCompletedUnpaidRequests = requests.some(
+    (request) => request.status === 'completed' && request.billing_status === 'unpaid'
+  );
 
   const limits = service ? limitsFor(service.unit) : LIMITS.default;
 
@@ -201,7 +200,7 @@ export default function ReservationServices({ reservation }) {
     const result = await Swal.fire({
       icon: 'warning',
       title: 'Cancel this request?',
-      text: `${row.name} will be removed from your bill.`,
+      text: `Your unpaid ${row.name} request will be cancelled.`,
       showCancelButton: true,
       confirmButtonText: 'Yes, cancel it',
       confirmButtonColor: '#b91c1c',
@@ -236,9 +235,7 @@ export default function ReservationServices({ reservation }) {
 
           {loaded && requests.length > 0 && (
             <div className="service-list">
-              <h4>
-                Your requests · {peso.format(total)} (separate from the stay balance)
-              </h4>
+              <h4>Your service requests</h4>
               {requests.map((r) => (
                 <div className="service-row" key={r.id}>
                   <span>
@@ -258,7 +255,7 @@ export default function ReservationServices({ reservation }) {
                     {r.billing_status === 'paid' ? 'Paid' : 'Unpaid'}
                   </span>
                   <span>{peso.format(r.total_amount)}</span>
-                  {r.status === 'requested' ? (
+                  {r.status === 'requested' && r.billing_status === 'unpaid' ? (
                     <button
                       className="btn-outline"
                       disabled={busyId === r.id}
@@ -271,10 +268,10 @@ export default function ReservationServices({ reservation }) {
                   )}
                 </div>
               ))}
-              {unpaidCompletedTotal > 0 && (
+              {hasCompletedUnpaidRequests && (
                 <p className="muted">
-                  Pay {peso.format(unpaidCompletedTotal)} in cash at the front desk, or through
-                  Xendit from the payment section above.
+                  Pay completed services in cash at the front desk. The hotel will mark each
+                  service paid after receiving the cash.
                 </p>
               )}
             </div>
