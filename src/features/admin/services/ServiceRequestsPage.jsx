@@ -84,7 +84,11 @@ export default function ServiceRequestsPage() {
   const [saving, setSaving] = useState(false);
 
   const requestFetcher = useCallback(() => fetchServiceRequests(filter), [filter]);
-  const requestState = useCachedFetch(`admin:service-requests:${filter}`, requestFetcher);
+  const requestState = useCachedFetch(
+    `admin:service-requests:${filter}`,
+    requestFetcher,
+    { ttlMs: 0, pollIntervalMs: 10_000 }
+  );
   const catalogState = useCachedFetch(
     canManage ? 'admin:service-catalog' : 'admin:service-catalog:restricted',
     canManage ? fetchServiceCatalog : fetchEmptyServiceCatalog
@@ -217,6 +221,13 @@ export default function ServiceRequestsPage() {
                 {f.label}
               </button>
             ))}
+            <button
+              className="btn btn-ghost"
+              onClick={() => requestState.refresh()}
+              disabled={loading}
+            >
+              {loading ? 'Refreshing…' : 'Refresh requests'}
+            </button>
           </div>
 
           <div className="table-card">

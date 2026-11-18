@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { reservationsApi } from './customerService';
@@ -30,7 +30,7 @@ export default function MyReservationsPage() {
   const { user } = useAuth();
   const reservations = useCachedFetch('customer:reservations', fetchReservations);
   const [searchParams] = useSearchParams();
-  const rows = reservations.data ?? [];
+  const rows = useMemo(() => reservations.data ?? [], [reservations.data]);
   const legacyPaidValue = searchParams.get('paid');
   const paymentResult = searchParams.get('result') || (
     legacyPaidValue ? (legacyPaidValue === 'failed' ? 'failed' : 'success') : ''
@@ -42,6 +42,7 @@ export default function MyReservationsPage() {
 
   const [tab, setTab] = useState('current');
   const [changing, setChanging] = useState(null);
+  const refreshReservations = reservations.refresh;
 
   const visible = rows.filter((r) => (tab === 'current' ? r.is_current : !r.is_current));
   const now = new Date();
@@ -54,10 +55,25 @@ export default function MyReservationsPage() {
     (r) => ['pending', 'confirmed'].includes(r.status) && r.check_in_date >= today
   ).length;
 
-  function refresh() {
+  const refresh = useCallback(() => {
     invalidate('customer:reservations');
-    reservations.refresh();
-  }
+    refreshReservations();
+  }, [refreshReservations]);
+
+  useEffect(() => {
+    const refreshAfterServiceChange = (event) => {
+      if (rows.some((reservation) => (
+        Number(reservation.id) === Number(event.detail?.reservationId)
+      ))) {
+        refresh();
+      }
+    };
+
+    window.addEventListener('reservation-services:changed', refreshAfterServiceChange);
+    return () => {
+      window.removeEventListener('reservation-services:changed', refreshAfterServiceChange);
+    };
+  }, [refresh, rows]);
 
   async function cancel(row) {
     const result = await Swal.fire({

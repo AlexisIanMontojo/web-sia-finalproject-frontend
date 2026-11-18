@@ -45,6 +45,7 @@ export default function ReservationPayment({ reservation, verifyExternalId = '' 
     `customer:reservation-payments:${reservation.id}:${verifyExternalId || 'current'}`,
     fetcher
   );
+  const refreshPayments = paymentState.refresh;
   const info = paymentState.data;
   const loading = paymentState.loading;
 
@@ -53,6 +54,19 @@ export default function ReservationPayment({ reservation, verifyExternalId = '' 
       showError('Could not load payments', paymentState.error.response?.data?.message || 'Try again.');
     }
   }, [paymentState.error]);
+
+  useEffect(() => {
+    const refreshForServiceChange = (event) => {
+      if (Number(event.detail?.reservationId) === Number(reservation.id)) {
+        refreshPayments();
+      }
+    };
+
+    window.addEventListener('reservation-services:changed', refreshForServiceChange);
+    return () => {
+      window.removeEventListener('reservation-services:changed', refreshForServiceChange);
+    };
+  }, [refreshPayments, reservation.id]);
 
   async function pay() {
     setPaying(true);

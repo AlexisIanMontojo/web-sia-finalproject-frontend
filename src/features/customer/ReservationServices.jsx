@@ -184,6 +184,9 @@ export default function ReservationServices({ reservation }) {
       clearPick();
       retainCatalogCache();
       await requestState.refresh();
+      window.dispatchEvent(new CustomEvent('reservation-services:changed', {
+        detail: { reservationId: Number(reservation.id) },
+      }));
     } catch (err) {
       setErrors(
         err.response?.data?.errors || [err.response?.data?.message || 'Could not add this service.']
@@ -210,6 +213,9 @@ export default function ReservationServices({ reservation }) {
       toast('success', 'Request cancelled');
       retainCatalogCache();
       await requestState.refresh();
+      window.dispatchEvent(new CustomEvent('reservation-services:changed', {
+        detail: { reservationId: Number(reservation.id) },
+      }));
     } catch (err) {
       showError('Cannot cancel', err.response?.data?.message || 'Try again.');
     } finally {
