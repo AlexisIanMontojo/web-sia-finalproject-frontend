@@ -101,6 +101,4 @@ export const paymentsApi = {
   ),
   reservationPayment: (id, data) => api.post(`/api/customer/reservations/${id}/payment`, data),
   downpayment: (id) => api.post(`/api/customer/reservations/${id}/downpayment`),
-  servicePayment: (id, method) =>
-    api.post(`/api/customer/reservations/${id}/service-payment`, { method }),
 };

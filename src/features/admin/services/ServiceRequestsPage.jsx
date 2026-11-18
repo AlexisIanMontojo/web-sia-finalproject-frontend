@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import Swal from 'sweetalert2';
 import { serviceRequestsApi, serviceCatalogApi } from '../adminService';
 import { toast, showError } from '../../../lib/alerts';
 import { useAuth } from '../../auth/AuthContext';
@@ -111,12 +112,24 @@ export default function ServiceRequestsPage() {
   }, [canManage, catalogState.error, tab]);
 
   async function act(row, action) {
+    if (action === 'billed') {
+      const result = await Swal.fire({
+        icon: 'question',
+        title: 'Confirm cash payment?',
+        text: `Confirm that cash was received for ${row.name} from ${row.guest_name}.`,
+        showCancelButton: true,
+        confirmButtonText: 'Yes, cash received',
+        confirmButtonColor: '#174d38',
+      });
+      if (!result.isConfirmed) return;
+    }
+
     setBusyId(row.id);
     try {
       if (action === 'confirm') await serviceRequestsApi.confirm(row.id);
       if (action === 'complete') await serviceRequestsApi.complete(row.id);
       if (action === 'billed') await serviceRequestsApi.billed(row.id);
-      toast('success', 'Updated');
+      toast('success', action === 'billed' ? 'Cash payment confirmed' : 'Updated');
       await requestState.refresh();
     } catch (err) {
       showError('Could not update', err.response?.data?.message || 'Try again.');
@@ -187,7 +200,7 @@ export default function ServiceRequestsPage() {
         <div>
           <h1 className="admin-page-title">Extra Services</h1>
           <p className="admin-page-subtitle">
-            Confirm and complete guest requests. Managers also set the services offered and mark them paid.
+            Confirm and complete guest requests. Managers also manage services and confirm cash payments received.
           </p>
         </div>
       </div>
@@ -309,7 +322,7 @@ export default function ServiceRequestsPage() {
                             disabled={busyId === r.id}
                             onClick={() => act(r, 'billed')}
                           >
-                            Mark paid
+                            Confirm cash received
                           </button>
                         )}
                       </td>

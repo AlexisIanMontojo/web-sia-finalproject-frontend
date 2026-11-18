@@ -42,6 +42,7 @@ export default function MyReservationsPage() {
 
   const [tab, setTab] = useState('current');
   const [changing, setChanging] = useState(null);
+  const [cancellingId, setCancellingId] = useState(null);
   const refreshReservations = reservations.refresh;
 
   const visible = rows.filter((r) => (tab === 'current' ? r.is_current : !r.is_current));
@@ -86,6 +87,7 @@ export default function MyReservationsPage() {
     });
     if (!result.isConfirmed) return;
 
+    setCancellingId(row.id);
     try {
       await reservationsApi.cancel(row.id, 'Cancelled by customer');
       await Swal.fire({
@@ -101,6 +103,8 @@ export default function MyReservationsPage() {
         title: 'Cannot cancel',
         text: err.response?.data?.message || 'Try again.',
       });
+    } finally {
+      setCancellingId(null);
     }
   }
 
@@ -175,11 +179,14 @@ export default function MyReservationsPage() {
             {r.check_in_date} to {r.check_out_date} · {r.guests} guest(s)
           </p>
           <p>
-            <strong>Total charges: {peso.format(r.total_due ?? r.total_amount)}</strong>
+            <strong>Stay total: {peso.format(r.total_amount)}</strong>
             {Number(r.service_total) > 0 && (
-              <span className="muted">
-                {' '}· Includes {peso.format(r.service_total)} in extra services
-              </span>
+              <div className="muted">
+                Extra services are separate from the stay balance. Unpaid service charges:{' '}
+                {peso.format(
+                  Math.max(0, Number(r.service_total) - Number(r.service_paid || 0))
+                )}
+              </div>
             )}
           </p>
 
@@ -194,8 +201,12 @@ export default function MyReservationsPage() {
               </button>
             )}
             {r.cancellable && (
-              <button className="btn-outline" onClick={() => cancel(r)}>
-                Cancel reservation
+              <button
+                className="btn-outline"
+                disabled={cancellingId === r.id}
+                onClick={() => cancel(r)}
+              >
+                {cancellingId === r.id ? 'Cancelling…' : 'Cancel reservation'}
               </button>
             )}
           </div>

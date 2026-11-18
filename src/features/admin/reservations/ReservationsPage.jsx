@@ -133,7 +133,7 @@ export default function ReservationsPage() {
                 <th>Room</th>
                 <th>Stay</th>
                 <th>Guests</th>
-                <th>Total</th>
+                <th>Stay total</th>
                 <th>Status</th>
                 <th className="text-right">Actions</th>
               </tr>
@@ -155,15 +155,20 @@ export default function ReservationsPage() {
                   </td>
                   <td>{r.guests}</td>
                   <td>
-                    {peso.format(r.total_due ?? r.total_amount)}
+                    {peso.format(r.total_amount)}
                     {Number(r.service_total) > 0 && (
                       <div className="muted">
-                        Services {peso.format(r.service_total)}
+                        Services (separate) {peso.format(r.service_total)}
+                      </div>
+                    )}
+                    {Number(r.service_balance) > 0 && (
+                      <div className="muted">
+                        Separate service balance {peso.format(r.service_balance)}
                       </div>
                     )}
                     {r.balance_due != null && (
                       <div className="muted">
-                        Due {peso.format(r.balance_due)}
+                        Stay balance {peso.format(r.balance_due)}
                       </div>
                     )}
                   </td>

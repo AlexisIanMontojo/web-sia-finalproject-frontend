@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
-import { paymentsApi, servicesApi } from './customerService';
+import { servicesApi } from './customerService';
 import { toast, showError } from '../../lib/alerts';
 import { useCachedFetch } from '../../lib/cache';
 import '../../layouts/Customer.css';
@@ -71,8 +71,8 @@ const fetchServiceCatalog = async () => {
   return data.data;
 };
 
-const fetchReservationServices = async (id, force = false) => {
-  const { data } = await servicesApi.forReservation(id, force);
+const fetchReservationServices = async (id) => {
+  const { data } = await servicesApi.forReservation(id);
   return data;
 };
 
@@ -84,7 +84,6 @@ export default function ReservationServices({ reservation }) {
   const [errors, setErrors] = useState([]);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState(null);
-  const [paying, setPaying] = useState('');
   const requestKey = useRef(null);
 
   const requestFetcher = useCallback(() => fetchReservationServices(reservation.id), [reservation.id]);
@@ -99,7 +98,6 @@ export default function ReservationServices({ reservation }) {
   const requests = serviceData?.data || [];
   const total = serviceData?.total || 0;
   const stayOpen = serviceData?.open || false;
-  const pendingPayment = serviceData?.pending_service_payment || null;
   const loaded = Boolean(catalogState.data && serviceData);
   const loading = open && !loaded && (catalogState.loading || requestState.loading);
 
@@ -119,7 +117,7 @@ export default function ReservationServices({ reservation }) {
     () => catalog.find((s) => s.id === pickedId) || null,
     [catalog, pickedId]
   );
-  const payableTotal = requests
+  const unpaidCompletedTotal = requests
     .filter((request) => request.status === 'completed' && request.billing_status === 'unpaid')
     .reduce((sum, request) => sum + Number(request.total_amount || 0), 0);
 
@@ -223,47 +221,6 @@ export default function ReservationServices({ reservation }) {
     }
   }
 
-  async function payServices(method) {
-    setPaying(method);
-    try {
-      const { data } = await paymentsApi.servicePayment(reservation.id, method);
-      if (data.provider === 'xendit' && data.invoice_url) {
-        retainCatalogCache();
-        window.location.href = data.invoice_url;
-        return;
-      }
-
-      toast('success', 'Cash payment requested. Please pay the hotel in person.');
-      retainCatalogCache();
-      try {
-        requestState.setData(await fetchReservationServices(reservation.id, true));
-      } catch (err) {
-        showError(
-          'Cash payment was requested, but the service status could not be refreshed',
-          err.response?.data?.message || 'Reopen this section to check again.'
-        );
-      }
-    } catch (err) {
-      showError('Cannot start payment', err.response?.data?.message || 'Try again.');
-    } finally {
-      setPaying('');
-    }
-  }
-
-  function continuePendingPayment() {
-    if (pendingPayment?.provider === 'xendit' && pendingPayment.invoice_url) {
-      window.location.href = pendingPayment.invoice_url;
-    }
-  }
-
-  async function refreshServiceStatus() {
-    try {
-      requestState.setData(await fetchReservationServices(reservation.id, true));
-    } catch (err) {
-      showError('Could not refresh service payment status', err.response?.data?.message || 'Try again.');
-    }
-  }
-
   return (
     <div className="services-box">
       <button
@@ -280,7 +237,9 @@ export default function ReservationServices({ reservation }) {
 
           {loaded && requests.length > 0 && (
             <div className="service-list">
-              <h4>Your requests · total {peso.format(total)}</h4>
+              <h4>
+                Your requests · {peso.format(total)} (separate from the stay balance)
+              </h4>
               {requests.map((r) => (
                 <div className="service-row" key={r.id}>
                   <span>
@@ -313,46 +272,11 @@ export default function ReservationServices({ reservation }) {
                   )}
                 </div>
               ))}
-              {pendingPayment?.provider === 'xendit' && (
-                <div className="map-actions">
-                  <button className="btn-main" onClick={continuePendingPayment}>
-                    Continue Xendit payment {peso.format(pendingPayment.amount)}
-                  </button>
-                </div>
-              )}
-              {pendingPayment?.provider === 'cash' && (
-                <>
-                  <p className="muted">
-                    Cash payment is awaiting confirmation. Please pay the hotel in person.
-                  </p>
-                  <button
-                    className="btn-outline"
-                    disabled={Boolean(paying)}
-                    onClick={refreshServiceStatus}
-                  >
-                    Refresh payment status
-                  </button>
-                </>
-              )}
-              {!pendingPayment && payableTotal > 0 && (
-                <div className="map-actions">
-                  <button
-                    className="btn-main"
-                    disabled={Boolean(paying)}
-                    onClick={() => payServices('xendit')}
-                  >
-                    {paying === 'xendit'
-                      ? 'Opening Xendit…'
-                      : `Pay with Xendit · ${peso.format(payableTotal)}`}
-                  </button>
-                  <button
-                    className="btn-outline"
-                    disabled={Boolean(paying)}
-                    onClick={() => payServices('cash')}
-                  >
-                    {paying === 'cash' ? 'Requesting…' : 'Pay in cash'}
-                  </button>
-                </div>
+              {unpaidCompletedTotal > 0 && (
+                <p className="muted">
+                  Pay {peso.format(unpaidCompletedTotal)} in cash at the front desk. The hotel
+                  will confirm the payment after receiving it.
+                </p>
               )}
             </div>
           )}
