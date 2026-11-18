@@ -345,15 +345,19 @@ export function useCachedFetch(
       ? window.setInterval(() => refreshWhenVisible(), pollIntervalMs)
       : null;
     const refreshOnActivity = () => refreshWhenVisible(true);
+    const refreshAfterChange = () => {
+      invalidate(key);
+      refreshWhenVisible(true);
+    };
 
     window.addEventListener('focus', refreshOnActivity);
     document.addEventListener('visibilitychange', refreshOnActivity);
-    window.addEventListener('cache:changed', refreshOnActivity);
+    window.addEventListener('cache:changed', refreshAfterChange);
     return () => {
       if (poll !== null) window.clearInterval(poll);
       window.removeEventListener('focus', refreshOnActivity);
       document.removeEventListener('visibilitychange', refreshOnActivity);
-      window.removeEventListener('cache:changed', refreshOnActivity);
+      window.removeEventListener('cache:changed', refreshAfterChange);
     };
   }, [enabled, key, pollIntervalMs, refresh, ttlMs]);
 

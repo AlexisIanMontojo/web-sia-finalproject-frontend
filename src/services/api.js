@@ -1,7 +1,6 @@
 import axios from 'axios';
 import {
   clearCache as clearViewCache,
-  clearMemoryCache,
   publishCacheChanged,
 } from '../lib/cache';
 
@@ -27,7 +26,6 @@ export function clearApiCache() {
 export function setAccessToken(token) {
   if (accessToken !== token) {
     clearResponseCache();
-    clearMemoryCache();
   }
   accessToken = token;
 }
@@ -160,7 +158,9 @@ api.interceptors.response.use(
     recordApiPerformance(response.config, response.status);
     if (response.config.method?.toLowerCase() !== 'get') {
       clearResponseCache();
-      publishCacheChanged();
+      if (!response.config.url?.startsWith('/api/auth/')) {
+        publishCacheChanged();
+      }
     }
     return response;
   },
